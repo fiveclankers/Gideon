@@ -1,0 +1,20 @@
+# Gideon runtime dependencies.
+# Versions are intentionally unpinned; the daemon tracks current releases.
+# Python 3.10+ is required.
+
+# Core runtime
+numpy
+scipy
+httpx
+onnxruntime
+transformers
+
+# Speech input (loaded lazily by the listener)
+faster-whisper
+sounddevice
+
+# Optional: CUDA execution for faster-whisper / ONNX
+# torch
+
+# Optional: wake-word detection (audio/wake.py)
+# openwakeword

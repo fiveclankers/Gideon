@@ -1,0 +1,2175 @@
+{"text": "gideon reboot system", "label": "system_reboot"}
+{"text": "uh headphones output please", "label": "audio_output_headphones"}
+{"text": "hey verify study ledgers for me", "label": "study_doctor"}
+{"text": "view traps for phy_02", "label": "study_traps_view"}
+{"text": "gideon mute my mic real quick", "label": "audio_mic_mute"}
+{"text": "just open web browser for me", "label": "launch_browser"}
+{"text": "can you lock computer now", "label": "system_lock"}
+{"text": "just lock screen", "label": "system_lock"}
+{"text": "gideon switch to preceding workspace", "label": "workspace_prev"}
+{"text": "hey gideon how is system health real quick", "label": "system_status"}
+{"text": "hey turn on light mode", "label": "omarchy_theme_light"}
+{"text": "ok gideon skip track", "label": "media_next"}
+{"text": "ok gideon next workspace", "label": "workspace_next"}
+{"text": "just move focus up thanks", "label": "window_focus_up"}
+{"text": "please shut off audio", "label": "audio_mute"}
+{"text": "could you start study sprint for Electrostatics please", "label": "study_sprint_start"}
+{"text": "hey lock my desktop", "label": "system_lock"}
+{"text": "pause playback now", "label": "media_pause"}
+{"text": "hit play", "label": "media_play"}
+{"text": "show all omarchy themes please", "label": "omarchy_theme_list"}
+{"text": "just switch to top window thanks", "label": "window_focus_up"}
+{"text": "quick set display brightness to 25", "label": "brightness_set"}
+{"text": "what misconceptions exist in phy_02", "label": "study_traps_view"}
+{"text": "can you mute microphone thanks", "label": "audio_mic_mute"}
+{"text": "i want you to speaker output thanks", "label": "audio_output_speakers"}
+{"text": "please prior workspace", "label": "workspace_previous"}
+{"text": "could you go to prior workspace now", "label": "workspace_prev"}
+{"text": "i want you to mute audio now", "label": "audio_mute"}
+{"text": "yo gideon toggle play pause for me", "label": "media_play_pause"}
+{"text": "yo gideon open terminal", "label": "launch_terminal"}
+{"text": "gideon please go to prior workspace", "label": "workspace_prev"}
+{"text": "gideon lock computer for me", "label": "system_lock"}
+{"text": "hey cycle to next omarchy theme", "label": "omarchy_theme_next"}
+{"text": "yo gideon run omarchy update for me", "label": "omarchy_update"}
+{"text": "run system update real quick", "label": "omarchy_update"}
+{"text": "please switch to top window now", "label": "window_focus_up"}
+{"text": "quick check study consistency", "label": "study_doctor"}
+{"text": "uh what is the definition of momentum", "label": "conversation"}
+{"text": "turn it down now", "label": "audio_volume_down"}
+{"text": "gideon focus right window please", "label": "window_focus_right"}
+{"text": "hey gideon switch to light theme real quick", "label": "omarchy_theme_light"}
+{"text": "just turn brightness up", "label": "brightness_up"}
+{"text": "quick focus window down", "label": "window_focus_down"}
+{"text": "just next workspace now", "label": "workspace_next"}
+{"text": "uh unmute my mic please", "label": "audio_mic_unmute"}
+{"text": "please raise display brightness please", "label": "brightness_up"}
+{"text": "yo gideon open brave real quick", "label": "launch_brave"}
+{"text": "please play pause media thanks", "label": "media_play_pause"}
+{"text": "just shut down computer", "label": "system_shutdown"}
+{"text": "can you toggle audio mute", "label": "audio_mute_toggle"}
+{"text": "gideon please switch to bottom window please", "label": "window_focus_down"}
+{"text": "start vscode thanks", "label": "launch_code"}
+{"text": "open kitty please", "label": "launch_terminal"}
+{"text": "real quick speaker output", "label": "audio_output_speakers"}
+{"text": "quick start chrome", "label": "launch_browser"}
+{"text": "lower brightness by 15%", "label": "brightness_down"}
+{"text": "turn on light mode for me", "label": "omarchy_theme_light"}
+{"text": "gideon please view study status", "label": "study_status_view"}
+{"text": "add note: the work function depends on metal surface properties for me", "label": "flash_note_add"}
+{"text": "please read the text in the active browser tab", "label": "browser_use_passthrough"}
+{"text": "can you switch to agy please", "label": "engine_switch"}
+{"text": "please note down: matrix multiplication is associative but not commutative", "label": "flash_note_add"}
+{"text": "adjust brightness to 25% please", "label": "brightness_set"}
+{"text": "uh mute my mic now", "label": "audio_mic_mute"}
+{"text": "show revision queue thanks", "label": "study_queue_view"}
+{"text": "real quick run doctor on study system please", "label": "study_doctor"}
+{"text": "update system and omarchy for me", "label": "omarchy_update"}
+{"text": "go back a song please", "label": "media_previous"}
+{"text": "gideon mute speakers", "label": "audio_mute"}
+{"text": "switch to bright theme real quick", "label": "omarchy_theme_light"}
+{"text": "yo gideon view desktop keybindings real quick", "label": "omarchy_keybindings"}
+{"text": "please disable mic input", "label": "audio_mic_mute"}
+{"text": "please toggle full screen", "label": "window_fullscreen_toggle"}
+{"text": "gideon please advance to next workspace thanks", "label": "workspace_next"}
+{"text": "could you play previous track", "label": "media_previous"}
+{"text": "ok gideon open web browser", "label": "launch_browser"}
+{"text": "uh reboot computer now", "label": "system_reboot"}
+{"text": "could you focus upper window real quick", "label": "window_focus_up"}
+{"text": "yo gideon stop media now", "label": "media_stop"}
+{"text": "yo gideon mic unmute thanks", "label": "audio_mic_unmute"}
+{"text": "open command line terminal thanks", "label": "launch_terminal"}
+{"text": "hey gideon list themes real quick", "label": "omarchy_theme_list"}
+{"text": "previous track now", "label": "media_previous"}
+{"text": "uh open files app", "label": "launch_file_manager"}
+{"text": "gideon previous song", "label": "media_previous"}
+{"text": "hold the music for me", "label": "media_pause"}
+{"text": "quick take a snip", "label": "omarchy_screenshot"}
+{"text": "next wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "just restart machine please", "label": "system_reboot"}
+{"text": "gideon switch audio to headphones please", "label": "audio_output_headphones"}
+{"text": "volume up please", "label": "audio_volume_up"}
+{"text": "quick use Miasma theme", "label": "omarchy_theme_set"}
+{"text": "ok gideon focus left pane", "label": "window_focus_left"}
+{"text": "yo gideon open kitty", "label": "launch_terminal"}
+{"text": "could you switch to dark style thanks", "label": "omarchy_theme_dark"}
+{"text": "uh toggle audio mute thanks", "label": "audio_mute_toggle"}
+{"text": "please open kitty real quick", "label": "launch_terminal"}
+{"text": "gideon please check battery and cpu status please", "label": "system_status"}
+{"text": "just switch to agy now", "label": "engine_switch"}
+{"text": "can you cycle theme thanks", "label": "omarchy_theme_next"}
+{"text": "uh jot this down: remember to review Gauss's Law before tomorrow's sprint", "label": "flash_note_add"}
+{"text": "yo gideon reduce the volume", "label": "audio_volume_down"}
+{"text": "look up current weather in tokyo", "label": "web_search"}
+{"text": "ok gideon what is my study burndown", "label": "study_status_view"}
+{"text": "hey gideon raise display brightness", "label": "brightness_up"}
+{"text": "can you play previous track for me", "label": "media_previous"}
+{"text": "can you move focus up real quick", "label": "window_focus_up"}
+{"text": "volume 30 percent", "label": "audio_volume_set"}
+{"text": "please set output to headphones", "label": "audio_output_headphones"}
+{"text": "just workspace minus one please", "label": "workspace_prev"}
+{"text": "i want you to switch to next workspace for me", "label": "workspace_next"}
+{"text": "real quick focus window up thanks", "label": "window_focus_up"}
+{"text": "hey update system and omarchy", "label": "omarchy_update"}
+{"text": "please run system update thanks", "label": "omarchy_update"}
+{"text": "hey gideon show system stats thanks", "label": "system_status"}
+{"text": "uh brighten screen real quick", "label": "brightness_up"}
+{"text": "gideon launch vs code real quick", "label": "launch_code"}
+{"text": "what reviews are due today please", "label": "study_queue_view"}
+{"text": "close this window for me", "label": "window_close"}
+{"text": "gideon maximize window toggle", "label": "window_fullscreen_toggle"}
+{"text": "gideon stop playing audio thanks", "label": "media_stop"}
+{"text": "gideon please turn off sound for me", "label": "audio_mute"}
+{"text": "could you enable mic input", "label": "audio_mic_unmute"}
+{"text": "gideon please turn off microphone for me", "label": "audio_mic_mute"}
+{"text": "hey shut this window now", "label": "window_close"}
+{"text": "focus right window thanks", "label": "window_focus_right"}
+{"text": "could you try next theme please", "label": "omarchy_theme_next"}
+{"text": "could you open brave", "label": "launch_brave"}
+{"text": "i want you to lock the workstation now", "label": "system_lock"}
+{"text": "just switch to left window real quick", "label": "window_focus_left"}
+{"text": "could you unmute mic", "label": "audio_mic_unmute"}
+{"text": "i want you to update system and omarchy please", "label": "omarchy_update"}
+{"text": "hey gideon toggle play pause please", "label": "media_play_pause"}
+{"text": "i want you to open google chrome", "label": "launch_browser"}
+{"text": "engine agy", "label": "engine_switch"}
+{"text": "ok gideon move focus down for me", "label": "window_focus_down"}
+{"text": "just what is the definition of momentum", "label": "conversation"}
+{"text": "mute speakers now", "label": "audio_mute"}
+{"text": "real quick focus left pane please", "label": "window_focus_left"}
+{"text": "can you stop media", "label": "media_stop"}
+{"text": "snip region on screen real quick", "label": "omarchy_screenshot"}
+{"text": "move focus right", "label": "window_focus_right"}
+{"text": "yo gideon jump back to last workspace", "label": "workspace_previous"}
+{"text": "ok gideon take full screenshot and save", "label": "omarchy_screenshot_full"}
+{"text": "ok gideon switch to workspace 2 now", "label": "workspace_switch"}
+{"text": "run doctor on study system", "label": "study_doctor"}
+{"text": "gideon please switch to right window please", "label": "window_focus_right"}
+{"text": "gideon please open brave", "label": "launch_brave"}
+{"text": "play media now", "label": "media_play"}
+{"text": "real quick move focus down for me", "label": "window_focus_down"}
+{"text": "uh next wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "gideon restart computer please", "label": "system_reboot"}
+{"text": "switch to previous workspace please", "label": "workspace_previous"}
+{"text": "open google chrome thanks", "label": "launch_browser"}
+{"text": "please cycle theme", "label": "omarchy_theme_next"}
+{"text": "hey gideon focus right window for me", "label": "window_focus_right"}
+{"text": "please move focus left", "label": "window_focus_left"}
+{"text": "could you log out of session for me", "label": "system_logout"}
+{"text": "uh switch to light theme", "label": "omarchy_theme_light"}
+{"text": "launch terminal thanks", "label": "launch_terminal"}
+{"text": "check retention queue please", "label": "study_queue_view"}
+{"text": "click on the blue submit button on screen", "label": "browser_use_passthrough"}
+{"text": "take me to workspace 9", "label": "workspace_switch"}
+{"text": "reduce the volume please", "label": "audio_volume_down"}
+{"text": "real quick switch sound to speakers", "label": "audio_output_speakers"}
+{"text": "adjust brightness to 90% now", "label": "brightness_set"}
+{"text": "i want you to system shutdown now", "label": "system_shutdown"}
+{"text": "quick turn mic back on", "label": "audio_mic_unmute"}
+{"text": "quick open brave browser real quick", "label": "launch_brave"}
+{"text": "i want you to dim display please", "label": "brightness_down"}
+{"text": "lock the workstation please", "label": "system_lock"}
+{"text": "yo gideon display cpu and memory usage real quick", "label": "system_status"}
+{"text": "could you how is system health for me", "label": "system_status"}
+{"text": "i want you to launch vs code real quick", "label": "launch_code"}
+{"text": "brightness 20 percent", "label": "brightness_set"}
+{"text": "can you stop playing audio", "label": "media_stop"}
+{"text": "i want you to start google chrome", "label": "launch_browser"}
+{"text": "brightness 0 percent", "label": "brightness_set"}
+{"text": "please drop volume by 10 percent", "label": "audio_volume_down"}
+{"text": "quick capture screenshot to clipboard real quick", "label": "omarchy_screenshot"}
+{"text": "hey gideon last workspace for me", "label": "workspace_previous"}
+{"text": "could you next track please", "label": "media_next"}
+{"text": "set theme to matte black", "label": "omarchy_theme_set"}
+{"text": "toggle music playback now", "label": "media_play_pause"}
+{"text": "hey move focus left real quick", "label": "window_focus_left"}
+{"text": "can you create a dockerfile and docker-compose for the service", "label": "hard_goal"}
+{"text": "ok gideon switch to next workspace please", "label": "workspace_next"}
+{"text": "please open thunar thanks", "label": "launch_file_manager"}
+{"text": "could you what are my hyprland keybindings please", "label": "omarchy_keybindings"}
+{"text": "uh launch brave for me", "label": "launch_brave"}
+{"text": "could you reboot system real quick", "label": "system_reboot"}
+{"text": "real quick hyprland shortcut lookup", "label": "omarchy_keybindings"}
+{"text": "could you workspace minus one", "label": "workspace_prev"}
+{"text": "just switch audio to headphones please", "label": "audio_output_headphones"}
+{"text": "float active window please", "label": "window_floating_toggle"}
+{"text": "real quick show black book traps for che_01", "label": "study_traps_view"}
+{"text": "real quick close active window", "label": "window_close"}
+{"text": "gideon please mute mic real quick", "label": "audio_mic_mute"}
+{"text": "gideon please lower brightness", "label": "brightness_down"}
+{"text": "what is the derivative of sin(x) squared", "label": "conversation"}
+{"text": "ok gideon keep playing music", "label": "media_play"}
+{"text": "hey gideon capture screen region please", "label": "omarchy_screenshot"}
+{"text": "real quick open keybinding menu please", "label": "omarchy_keybindings"}
+{"text": "hey turn brightness up", "label": "brightness_up"}
+{"text": "real quick stop playback", "label": "media_stop"}
+{"text": "open revision queue real quick", "label": "study_queue_view"}
+{"text": "i want you to make window floating", "label": "window_floating_toggle"}
+{"text": "quick fullscreen screenshot real quick", "label": "omarchy_screenshot_full"}
+{"text": "yo gideon fullscreen active window thanks", "label": "window_fullscreen_toggle"}
+{"text": "what is the difference between a tensor and a matrix", "label": "conversation"}
+{"text": "just launch spotify", "label": "launch_spotify"}
+{"text": "just check system status for me", "label": "system_status"}
+{"text": "hey take a snip real quick", "label": "omarchy_screenshot"}
+{"text": "uh kill active window", "label": "window_close"}
+{"text": "yo gideon check study progress overview please", "label": "study_status_view"}
+{"text": "uh switch to next workspace now", "label": "workspace_next"}
+{"text": "switch audio to speakers real quick", "label": "audio_output_speakers"}
+{"text": "hey toggle music playback", "label": "media_play_pause"}
+{"text": "please launch study workspace for mat_01 for me", "label": "study_sprint_start"}
+{"text": "implement a quicksort algorithm in c++ now", "label": "hard_goal"}
+{"text": "real quick lower brightness by 5%", "label": "brightness_down"}
+{"text": "ok gideon start drill session on mat_01 real quick", "label": "study_sprint_start"}
+{"text": "gideon focus left pane", "label": "window_focus_left"}
+{"text": "could you dim display please", "label": "brightness_down"}
+{"text": "ok gideon toggle music playback now", "label": "media_play_pause"}
+{"text": "launch brave browser", "label": "launch_brave"}
+{"text": "hey set display brightness to 25", "label": "brightness_set"}
+{"text": "when should we stop training the neural net for me", "label": "conversation"}
+{"text": "could you look up current weather in tokyo for me", "label": "web_search"}
+{"text": "i want you to previous workspace relative now", "label": "workspace_prev"}
+{"text": "route audio to speakers real quick", "label": "audio_output_speakers"}
+{"text": "explain electromagnetic induction intuitively thanks", "label": "conversation"}
+{"text": "gideon please reboot computer please", "label": "system_reboot"}
+{"text": "uh list themes now", "label": "omarchy_theme_list"}
+{"text": "real quick speaker output for me", "label": "audio_output_speakers"}
+{"text": "ok gideon play media", "label": "media_play"}
+{"text": "could you switch theme to Retro 82", "label": "omarchy_theme_set"}
+{"text": "uh turn mic back on", "label": "audio_mic_unmute"}
+{"text": "set brightness to 15%", "label": "brightness_set"}
+{"text": "start study sprint for phy_02", "label": "study_sprint_start"}
+{"text": "ok gideon open obsidian notes", "label": "launch_obsidian"}
+{"text": "i want you to read the text in the active browser tab thanks", "label": "browser_use_passthrough"}
+{"text": "hey gideon turn it up", "label": "audio_volume_up"}
+{"text": "ok gideon view traps for che_01", "label": "study_traps_view"}
+{"text": "uh lock the workstation", "label": "system_lock"}
+{"text": "gideon take a note: the work function depends on metal surface properties", "label": "flash_note_add"}
+{"text": "just close current app window", "label": "window_close"}
+{"text": "hey open files app please", "label": "launch_file_manager"}
+{"text": "hey gideon change wallpaper to ~/Pictures/wallpapers/forest.jpg", "label": "omarchy_wallpaper_set"}
+{"text": "yo gideon next wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "tell me a joke about computer science thanks", "label": "conversation"}
+{"text": "can you show study progress", "label": "study_status_view"}
+{"text": "can you use speakers please", "label": "audio_output_speakers"}
+{"text": "uh stop playing audio please", "label": "media_stop"}
+{"text": "quick apply Kanagawa theme real quick", "label": "omarchy_theme_set"}
+{"text": "just brightness down now", "label": "brightness_down"}
+{"text": "can you switch to right window", "label": "window_focus_right"}
+{"text": "take a note: matrix multiplication is associative but not commutative now", "label": "flash_note_add"}
+{"text": "quick toggle speakers mute now", "label": "audio_mute_toggle"}
+{"text": "start google chrome thanks", "label": "launch_browser"}
+{"text": "hey gideon write a rust program to parse pcap network packets real quick", "label": "hard_goal"}
+{"text": "volume 15 percent", "label": "audio_volume_set"}
+{"text": "real quick save full screen capture for me", "label": "omarchy_screenshot_full"}
+{"text": "gideon resume spotify", "label": "media_play"}
+{"text": "ok gideon view study telemetry real quick", "label": "study_status_view"}
+{"text": "just switch to right window", "label": "window_focus_right"}
+{"text": "hey add note: matrix multiplication is associative but not commutative", "label": "flash_note_add"}
+{"text": "quick go to prior workspace now", "label": "workspace_prev"}
+{"text": "quick shut off audio", "label": "audio_mute"}
+{"text": "gideon please log me out", "label": "system_logout"}
+{"text": "can you start google chrome real quick", "label": "launch_browser"}
+{"text": "restore audio thanks", "label": "audio_unmute"}
+{"text": "use speakers for me", "label": "audio_output_speakers"}
+{"text": "can you previous workspace relative", "label": "workspace_prev"}
+{"text": "yo gideon check study consistency", "label": "study_doctor"}
+{"text": "hey gideon sound level 75", "label": "audio_volume_set"}
+{"text": "just verify study ledgers please", "label": "study_doctor"}
+{"text": "just launch brave real quick", "label": "launch_brave"}
+{"text": "just next theme please", "label": "omarchy_theme_next"}
+{"text": "ok gideon toggle microphone thanks", "label": "audio_mic_mute_toggle"}
+{"text": "can you fullscreen screenshot thanks", "label": "omarchy_screenshot_full"}
+{"text": "yo gideon play media", "label": "media_play"}
+{"text": "please toggle microphone for me", "label": "audio_mic_mute_toggle"}
+{"text": "silence the speakers now", "label": "audio_mute"}
+{"text": "real quick switch sound to headset real quick", "label": "audio_output_headphones"}
+{"text": "use aether theme", "label": "omarchy_theme_set"}
+{"text": "gideon please launch terminal", "label": "launch_terminal"}
+{"text": "gideon please increase brightness by 15% for me", "label": "brightness_up"}
+{"text": "fullscreen active window real quick", "label": "window_fullscreen_toggle"}
+{"text": "just raise sound", "label": "audio_volume_up"}
+{"text": "quick raise the volume", "label": "audio_volume_up"}
+{"text": "uh workspace minus one thanks", "label": "workspace_prev"}
+{"text": "apply light theme real quick", "label": "omarchy_theme_light"}
+{"text": "brightness 10 percent", "label": "brightness_set"}
+{"text": "gideon please flash note: IAT registration deadline is next Monday", "label": "flash_note_add"}
+{"text": "gideon brighten screen", "label": "brightness_up"}
+{"text": "brightness down please", "label": "brightness_down"}
+{"text": "gideon please lock session for me", "label": "system_lock"}
+{"text": "ok gideon route audio to headphones for me", "label": "audio_output_headphones"}
+{"text": "ok gideon keep playing music for me", "label": "media_play"}
+{"text": "switch to next theme please", "label": "omarchy_theme_next"}
+{"text": "real quick put the volume at 100%", "label": "audio_volume_set"}
+{"text": "real quick set wallpaper to ~/Downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "can you adjust brightness to 5%", "label": "brightness_set"}
+{"text": "can you increase brightness by 15% thanks", "label": "brightness_up"}
+{"text": "gideon switch to agy", "label": "engine_switch"}
+{"text": "could you upgrade system packages for me", "label": "omarchy_update"}
+{"text": "gideon open terminal", "label": "launch_terminal"}
+{"text": "i want you to turn on light mode please", "label": "omarchy_theme_light"}
+{"text": "gideon please switch audio mute please", "label": "audio_mute_toggle"}
+{"text": "volume 5 percent", "label": "audio_volume_set"}
+{"text": "hey gideon apply light theme real quick", "label": "omarchy_theme_light"}
+{"text": "quick what are the core principles of quantum mechanics for me", "label": "conversation"}
+{"text": "yo gideon switch to next workspace please", "label": "workspace_next"}
+{"text": "please toggle music playback now", "label": "media_play_pause"}
+{"text": "switch to opencode for me", "label": "engine_switch"}
+{"text": "hey take screenshot", "label": "omarchy_screenshot"}
+{"text": "real quick turn mic back on", "label": "audio_mic_unmute"}
+{"text": "real quick stop playback for me", "label": "media_stop"}
+{"text": "real quick lower brightness by 25%", "label": "brightness_down"}
+{"text": "hey take a note: matrix multiplication is associative but not commutative now", "label": "flash_note_add"}
+{"text": "gideon toggle media playback real quick", "label": "media_play_pause"}
+{"text": "gideon take screenshot thanks", "label": "omarchy_screenshot"}
+{"text": "could you stop playback for me", "label": "media_stop"}
+{"text": "quick screenshot entire monitor", "label": "omarchy_screenshot_full"}
+{"text": "could you launch obsidian", "label": "launch_obsidian"}
+{"text": "i want you to open file explorer", "label": "launch_file_manager"}
+{"text": "just open kitty", "label": "launch_terminal"}
+{"text": "system reboot now now", "label": "system_reboot"}
+{"text": "just previous workspace relative", "label": "workspace_prev"}
+{"text": "restart computer now", "label": "system_reboot"}
+{"text": "yo gideon open command line terminal real quick", "label": "launch_terminal"}
+{"text": "real quick search online for iat 2026 syllabus updates", "label": "web_search"}
+{"text": "apply background image ~/Downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "gideon please lock the workstation thanks", "label": "system_lock"}
+{"text": "hey capture screen region", "label": "omarchy_screenshot"}
+{"text": "gideon please show study traps for phy_02 real quick", "label": "study_traps_view"}
+{"text": "hey open files app", "label": "launch_file_manager"}
+{"text": "update system and omarchy now", "label": "omarchy_update"}
+{"text": "please advance to next workspace thanks", "label": "workspace_next"}
+{"text": "unmute output for me", "label": "audio_unmute"}
+{"text": "open files app for me", "label": "launch_file_manager"}
+{"text": "yo gideon launch the spotify app please", "label": "launch_spotify"}
+{"text": "quick apply background image ~/Downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "i want you to move to workspace 7", "label": "workspace_switch"}
+{"text": "gideon please lock my desktop", "label": "system_lock"}
+{"text": "open spotify now", "label": "launch_spotify"}
+{"text": "hey gideon take screenshot", "label": "omarchy_screenshot"}
+{"text": "turn sound back on", "label": "audio_unmute"}
+{"text": "apply Gruvbox theme", "label": "omarchy_theme_set"}
+{"text": "uh launch chrome for me", "label": "launch_browser"}
+{"text": "please write a rust program to parse pcap network packets", "label": "hard_goal"}
+{"text": "can you brightness up for me", "label": "brightness_up"}
+{"text": "yo gideon focus window left real quick", "label": "window_focus_left"}
+{"text": "just shut off audio real quick", "label": "audio_mute"}
+{"text": "gideon please toggle window float for me", "label": "window_floating_toggle"}
+{"text": "quick view traps for Semiconductors", "label": "study_traps_view"}
+{"text": "toggle full screen now", "label": "window_fullscreen_toggle"}
+{"text": "quick exit desktop session please", "label": "system_logout"}
+{"text": "gideon enable light mode", "label": "omarchy_theme_light"}
+{"text": "go back to previous workspace please", "label": "workspace_previous"}
+{"text": "gideon please turn on microphone thanks", "label": "audio_mic_unmute"}
+{"text": "please switch audio mute", "label": "audio_mute_toggle"}
+{"text": "please open thunar now", "label": "launch_file_manager"}
+{"text": "mic unmute thanks", "label": "audio_mic_unmute"}
+{"text": "hey open obsidian", "label": "launch_obsidian"}
+{"text": "please workspace minus one real quick", "label": "workspace_prev"}
+{"text": "scroll down to the comments section on this page", "label": "browser_use_passthrough"}
+{"text": "i want you to prior workspace thanks", "label": "workspace_previous"}
+{"text": "real quick turn off computer real quick", "label": "system_shutdown"}
+{"text": "quick enable dark mode please", "label": "omarchy_theme_dark"}
+{"text": "yo gideon select the third option in the dropdown on the website thanks", "label": "browser_use_passthrough"}
+{"text": "hey gideon check battery and cpu status", "label": "system_status"}
+{"text": "uh what study sessions are due", "label": "study_queue_view"}
+{"text": "quick hit play", "label": "media_play"}
+{"text": "yo gideon show today due study cards", "label": "study_queue_view"}
+{"text": "quick lock computer real quick", "label": "system_lock"}
+{"text": "could you unmute my mic thanks", "label": "audio_mic_unmute"}
+{"text": "just focus window up now", "label": "window_focus_up"}
+{"text": "hey gideon switch to preceding workspace thanks", "label": "workspace_prev"}
+{"text": "hey gideon focus window up", "label": "window_focus_up"}
+{"text": "hey speaker output real quick", "label": "audio_output_speakers"}
+{"text": "gideon please pause the track", "label": "media_pause"}
+{"text": "gideon cycle to next omarchy theme real quick", "label": "omarchy_theme_next"}
+{"text": "uh how is my exam prep burndown", "label": "study_status_view"}
+{"text": "jump to workspace 9 real quick", "label": "workspace_switch"}
+{"text": "quick refactor the websocket server to use asyncio streams", "label": "hard_goal"}
+{"text": "gideon please next workspace please", "label": "workspace_next"}
+{"text": "focus right pane please", "label": "window_focus_right"}
+{"text": "decrease volume by 15%", "label": "audio_volume_down"}
+{"text": "display theme list please", "label": "omarchy_theme_list"}
+{"text": "quick turn off computer thanks", "label": "system_shutdown"}
+{"text": "hey gideon exit desktop session please", "label": "system_logout"}
+{"text": "uh display theme list", "label": "omarchy_theme_list"}
+{"text": "take full screenshot and save real quick", "label": "omarchy_screenshot_full"}
+{"text": "view traps for phy_01", "label": "study_traps_view"}
+{"text": "hey check battery and cpu status thanks", "label": "system_status"}
+{"text": "uh sound level 85", "label": "audio_volume_set"}
+{"text": "hey focus bottom window now", "label": "window_focus_down"}
+{"text": "close this window thanks", "label": "window_close"}
+{"text": "i want you to check battery and cpu status", "label": "system_status"}
+{"text": "just open keybinding menu for me", "label": "omarchy_keybindings"}
+{"text": "please what are the core principles of quantum mechanics", "label": "conversation"}
+{"text": "yo gideon lower brightness real quick", "label": "brightness_down"}
+{"text": "just open web browser", "label": "launch_browser"}
+{"text": "gideon open visual studio code", "label": "launch_code"}
+{"text": "yo gideon turn on dark mode please", "label": "omarchy_theme_dark"}
+{"text": "can you capture full screen", "label": "omarchy_screenshot_full"}
+{"text": "uh view study telemetry", "label": "study_status_view"}
+{"text": "gideon skip to next track please", "label": "media_next"}
+{"text": "can you log me out", "label": "system_logout"}
+{"text": "real quick make window fullscreen", "label": "window_fullscreen_toggle"}
+{"text": "please switch to top window for me", "label": "window_focus_up"}
+{"text": "volume to 30% thanks", "label": "audio_volume_set"}
+{"text": "gideon please move focus down now", "label": "window_focus_down"}
+{"text": "quick apply light theme", "label": "omarchy_theme_light"}
+{"text": "please reboot system please", "label": "system_reboot"}
+{"text": "quick close current app window thanks", "label": "window_close"}
+{"text": "real quick unmute sound please", "label": "audio_unmute"}
+{"text": "go back to previous workspace for me", "label": "workspace_previous"}
+{"text": "just capture screenshot to clipboard", "label": "omarchy_screenshot"}
+{"text": "hey pause media thanks", "label": "media_pause"}
+{"text": "yo gideon change wallpaper to ~/pictures/wallpapers/forest.jpg", "label": "omarchy_wallpaper_set"}
+{"text": "can you mute volume real quick", "label": "audio_mute"}
+{"text": "i want you to browse files", "label": "launch_file_manager"}
+{"text": "cycle wallpaper now", "label": "omarchy_wallpaper_next"}
+{"text": "ok gideon refactor the websocket server to use asyncio streams", "label": "hard_goal"}
+{"text": "yo gideon shut down computer", "label": "system_shutdown"}
+{"text": "halt playback now", "label": "media_stop"}
+{"text": "just next workspace", "label": "workspace_next"}
+{"text": "hey gideon mute my mic", "label": "audio_mic_mute"}
+{"text": "can you enable dark mode", "label": "omarchy_theme_dark"}
+{"text": "i want you to how is my exam prep burndown real quick", "label": "study_status_view"}
+{"text": "could you switch mic mute state", "label": "audio_mic_mute_toggle"}
+{"text": "use headphones please", "label": "audio_output_headphones"}
+{"text": "just headphones output please", "label": "audio_output_headphones"}
+{"text": "real quick open command line terminal for me", "label": "launch_terminal"}
+{"text": "i want you to open files folder", "label": "launch_file_manager"}
+{"text": "hey gideon toggle sound mute", "label": "audio_mute_toggle"}
+{"text": "switch to workspace 2 now", "label": "workspace_switch"}
+{"text": "can you open chrome browser real quick", "label": "launch_browser"}
+{"text": "quick screen brightness 25%", "label": "brightness_set"}
+{"text": "start chrome thanks", "label": "launch_browser"}
+{"text": "show system stats", "label": "system_status"}
+{"text": "switch to light theme real quick", "label": "omarchy_theme_light"}
+{"text": "gideon launch brave", "label": "launch_brave"}
+{"text": "can you try next theme for me", "label": "omarchy_theme_next"}
+{"text": "show study traps for Electrostatics", "label": "study_traps_view"}
+{"text": "quick focus window left real quick", "label": "window_focus_left"}
+{"text": "gideon focus window left please", "label": "window_focus_left"}
+{"text": "hey dim display", "label": "brightness_down"}
+{"text": "continue playing the song", "label": "media_play"}
+{"text": "quick view study queue", "label": "study_queue_view"}
+{"text": "lock computer now", "label": "system_lock"}
+{"text": "real quick toggle mic now", "label": "audio_mic_mute_toggle"}
+{"text": "gideon please implement backpropagation from scratch with numpy", "label": "hard_goal"}
+{"text": "search online for iat 2026 syllabus updates for me", "label": "web_search"}
+{"text": "uh focus upper window for me", "label": "window_focus_up"}
+{"text": "gideon start obsidian vault for me", "label": "launch_obsidian"}
+{"text": "gideon please check system status", "label": "system_status"}
+{"text": "open files folder", "label": "launch_file_manager"}
+{"text": "yo gideon unmute volume", "label": "audio_unmute"}
+{"text": "gideon turn brightness down thanks", "label": "brightness_down"}
+{"text": "switch to workspace 3", "label": "workspace_switch"}
+{"text": "can you toggle window float please", "label": "window_floating_toggle"}
+{"text": "please set wallpaper to ~/Pictures/wallpapers/forest.jpg real quick", "label": "omarchy_wallpaper_set"}
+{"text": "please dim display", "label": "brightness_down"}
+{"text": "what misconceptions exist in Thermodynamics", "label": "study_traps_view"}
+{"text": "hey gideon apply background image ~/pictures/wallpapers/forest.jpg", "label": "omarchy_wallpaper_set"}
+{"text": "yo gideon open web browser", "label": "launch_browser"}
+{"text": "yo gideon back one track please", "label": "media_previous"}
+{"text": "quick delete all temporary files in the cache directory using python real quick", "label": "hard_goal"}
+{"text": "hey run doctor on study system", "label": "study_doctor"}
+{"text": "ok gideon move focus right real quick", "label": "window_focus_right"}
+{"text": "just cycle wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "start obsidian vault", "label": "launch_obsidian"}
+{"text": "yo gideon toggle floating state real quick", "label": "window_floating_toggle"}
+{"text": "previous track please", "label": "media_previous"}
+{"text": "i want you to drop volume by 10 percent", "label": "audio_volume_down"}
+{"text": "hey view desktop keybindings", "label": "omarchy_keybindings"}
+{"text": "cycle wallpaper real quick", "label": "omarchy_wallpaper_next"}
+{"text": "yo gideon log me out thanks", "label": "system_logout"}
+{"text": "quick brightness 25 percent real quick", "label": "brightness_set"}
+{"text": "gideon switch to right window for me", "label": "window_focus_right"}
+{"text": "just launch terminal", "label": "launch_terminal"}
+{"text": "uh launch spotify for me", "label": "launch_spotify"}
+{"text": "please make window floating real quick", "label": "window_floating_toggle"}
+{"text": "yo gideon show black book traps for semiconductors", "label": "study_traps_view"}
+{"text": "gideon please move focus down", "label": "window_focus_down"}
+{"text": "could you take full screenshot and save", "label": "omarchy_screenshot_full"}
+{"text": "gideon enable mic input", "label": "audio_mic_unmute"}
+{"text": "quick crank up the sound please", "label": "audio_volume_up"}
+{"text": "gideon delete all temporary files in the cache directory using python", "label": "hard_goal"}
+{"text": "system performance stats now", "label": "system_status"}
+{"text": "uh engine agy", "label": "engine_switch"}
+{"text": "hey switch to previous workspace", "label": "workspace_previous"}
+{"text": "please open thunar", "label": "launch_file_manager"}
+{"text": "just advance to next workspace now", "label": "workspace_next"}
+{"text": "gideon turn volume to 5", "label": "audio_volume_set"}
+{"text": "hey gideon check system status thanks", "label": "system_status"}
+{"text": "workspace 10", "label": "workspace_switch"}
+{"text": "real quick toggle audio mute please", "label": "audio_mute_toggle"}
+{"text": "hey toggle speakers mute", "label": "audio_mute_toggle"}
+{"text": "just resume audio", "label": "media_play"}
+{"text": "yo gideon flash note: remember to review Gauss's Law before tomorrow's sprint", "label": "flash_note_add"}
+{"text": "just turn off computer", "label": "system_shutdown"}
+{"text": "quick maximize window toggle for me", "label": "window_fullscreen_toggle"}
+{"text": "hey gideon who are you", "label": "conversation"}
+{"text": "yo gideon view traps for mat_01 now", "label": "study_traps_view"}
+{"text": "ok gideon launch the spotify app please", "label": "launch_spotify"}
+{"text": "can you brightness down for me", "label": "brightness_down"}
+{"text": "uh search duckduckgo for python 3.12 release notes", "label": "web_search"}
+{"text": "i want you to who are you", "label": "conversation"}
+{"text": "hey gideon prior workspace for me", "label": "workspace_previous"}
+{"text": "please increase brightness by 25%", "label": "brightness_up"}
+{"text": "hey show available themes", "label": "omarchy_theme_list"}
+{"text": "set light theme in omarchy thanks", "label": "omarchy_theme_light"}
+{"text": "yo gideon how does gravity work according to general relativity", "label": "conversation"}
+{"text": "ok gideon show black book traps for Electrostatics", "label": "study_traps_view"}
+{"text": "start brave", "label": "launch_brave"}
+{"text": "please pause music thanks", "label": "media_pause"}
+{"text": "real quick set brightness to 60%", "label": "brightness_set"}
+{"text": "switch to left window for me", "label": "window_focus_left"}
+{"text": "ok gideon open keybinding menu", "label": "omarchy_keybindings"}
+{"text": "yo gideon search online for iat 2026 syllabus updates", "label": "web_search"}
+{"text": "unmute output", "label": "audio_unmute"}
+{"text": "please mute my mic thanks", "label": "audio_mic_mute"}
+{"text": "can you open obsidian notes please", "label": "launch_obsidian"}
+{"text": "gideon please lock session", "label": "system_lock"}
+{"text": "gideon please toggle floating window please", "label": "window_floating_toggle"}
+{"text": "hey gideon open brave browser please", "label": "launch_brave"}
+{"text": "ok gideon mic unmute now", "label": "audio_mic_unmute"}
+{"text": "pause the track thanks", "label": "media_pause"}
+{"text": "quick turn sound back on thanks", "label": "audio_unmute"}
+{"text": "gideon turn off microphone for me", "label": "audio_mic_mute"}
+{"text": "yo gideon how is system health now", "label": "system_status"}
+{"text": "real quick previous workspace relative", "label": "workspace_prev"}
+{"text": "can you build an end to end test pipeline in pytest for me", "label": "hard_goal"}
+{"text": "just validate ledger integrity for me", "label": "study_doctor"}
+{"text": "can you take a note: matrix multiplication is associative but not commutative", "label": "flash_note_add"}
+{"text": "start obsidian vault for me", "label": "launch_obsidian"}
+{"text": "quick how is my exam prep burndown", "label": "study_status_view"}
+{"text": "i want you to run system update thanks", "label": "omarchy_update"}
+{"text": "hey open brave real quick", "label": "launch_brave"}
+{"text": "just who are you", "label": "conversation"}
+{"text": "gideon please logout of desktop thanks", "label": "system_logout"}
+{"text": "please make window fullscreen thanks", "label": "window_fullscreen_toggle"}
+{"text": "uh open obsidian real quick", "label": "launch_obsidian"}
+{"text": "play pause media", "label": "media_play_pause"}
+{"text": "stop playing audio please", "label": "media_stop"}
+{"text": "i want you to open keybinding menu for me", "label": "omarchy_keybindings"}
+{"text": "hey gideon engine opencode", "label": "engine_switch"}
+{"text": "close active window thanks", "label": "window_close"}
+{"text": "gideon please freeze playback real quick", "label": "media_pause"}
+{"text": "quick what study sessions are due", "label": "study_queue_view"}
+{"text": "please focus bottom window real quick", "label": "window_focus_down"}
+{"text": "gideon please how does a transformer neural network attention mechanism work", "label": "conversation"}
+{"text": "move focus up thanks", "label": "window_focus_up"}
+{"text": "please mic unmute", "label": "audio_mic_unmute"}
+{"text": "could you unmute my mic", "label": "audio_mic_unmute"}
+{"text": "return to previous workspace please", "label": "workspace_previous"}
+{"text": "i want you to toggle play pause now", "label": "media_play_pause"}
+{"text": "i want you to make it louder", "label": "audio_volume_up"}
+{"text": "launch study workspace for Thermodynamics", "label": "study_sprint_start"}
+{"text": "could you advance to next workspace real quick", "label": "workspace_next"}
+{"text": "hey open obsidian notes now", "label": "launch_obsidian"}
+{"text": "ok gideon what is the definition of momentum", "label": "conversation"}
+{"text": "uh open notes app please", "label": "launch_obsidian"}
+{"text": "view traps for chemical kinetics for me", "label": "study_traps_view"}
+{"text": "can you mic unmute", "label": "audio_mic_unmute"}
+{"text": "just workspace minus one real quick", "label": "workspace_prev"}
+{"text": "just apply background image ~/Downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "quick who are you", "label": "conversation"}
+{"text": "navigate to the settings tab in the web app real quick", "label": "browser_use_passthrough"}
+{"text": "gideon please switch to next workspace for me", "label": "workspace_next"}
+{"text": "yo gideon scroll down to the comments section on this page", "label": "browser_use_passthrough"}
+{"text": "i want you to mute mic", "label": "audio_mic_mute"}
+{"text": "can you focus window up thanks", "label": "window_focus_up"}
+{"text": "gideon please system performance stats please", "label": "system_status"}
+{"text": "hey launch vs code thanks", "label": "launch_code"}
+{"text": "uh mute voice input", "label": "audio_mic_mute"}
+{"text": "ok gideon verify study ledgers for me", "label": "study_doctor"}
+{"text": "open thunar real quick", "label": "launch_file_manager"}
+{"text": "could you brighten screen real quick", "label": "brightness_up"}
+{"text": "ok gideon snip region on screen", "label": "omarchy_screenshot"}
+{"text": "i want you to lower brightness by 5%", "label": "brightness_down"}
+{"text": "uh brightness up", "label": "brightness_up"}
+{"text": "raise brightness please", "label": "brightness_up"}
+{"text": "update system and omarchy thanks", "label": "omarchy_update"}
+{"text": "gideon please open brave browser", "label": "launch_brave"}
+{"text": "just speaker output real quick", "label": "audio_output_speakers"}
+{"text": "system reboot now please", "label": "system_reboot"}
+{"text": "can you explain why the sky is blue", "label": "conversation"}
+{"text": "yo gideon return to previous workspace now", "label": "workspace_previous"}
+{"text": "yo gideon toggle sound mute now", "label": "audio_mute_toggle"}
+{"text": "real quick open visual studio code", "label": "launch_code"}
+{"text": "uh toggle sound mute for me", "label": "audio_mute_toggle"}
+{"text": "could you toggle floating state thanks", "label": "window_floating_toggle"}
+{"text": "real quick focus bottom window please", "label": "window_focus_down"}
+{"text": "apply Everforest theme", "label": "omarchy_theme_set"}
+{"text": "ok gideon open command line terminal", "label": "launch_terminal"}
+{"text": "browse files now", "label": "launch_file_manager"}
+{"text": "please check retention queue", "label": "study_queue_view"}
+{"text": "begin recall session for chemical kinetics", "label": "study_sprint_start"}
+{"text": "please toggle fullscreen now", "label": "window_fullscreen_toggle"}
+{"text": "can you fullscreen screenshot", "label": "omarchy_screenshot_full"}
+{"text": "please update omarchy", "label": "omarchy_update"}
+{"text": "can you switch audio mute", "label": "audio_mute_toggle"}
+{"text": "just capture screen region", "label": "omarchy_screenshot"}
+{"text": "can you open kitty real quick", "label": "launch_terminal"}
+{"text": "could you show omarchy keybindings thanks", "label": "omarchy_keybindings"}
+{"text": "move to workspace 9", "label": "workspace_switch"}
+{"text": "i want you to start obsidian vault now", "label": "launch_obsidian"}
+{"text": "hey gideon next wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "hey stop media", "label": "media_stop"}
+{"text": "hey gideon last workspace", "label": "workspace_previous"}
+{"text": "hey gideon focus window right", "label": "window_focus_right"}
+{"text": "just check study consistency real quick", "label": "study_doctor"}
+{"text": "real quick switch sound to headset", "label": "audio_output_headphones"}
+{"text": "uh put the volume at 5%", "label": "audio_volume_set"}
+{"text": "please toggle microphone please", "label": "audio_mic_mute_toggle"}
+{"text": "gideon open google chrome for me", "label": "launch_browser"}
+{"text": "gideon try next theme", "label": "omarchy_theme_next"}
+{"text": "hey start google chrome", "label": "launch_browser"}
+{"text": "hey explain electromagnetic induction intuitively for me", "label": "conversation"}
+{"text": "ok gideon switch background image now", "label": "omarchy_wallpaper_next"}
+{"text": "can you show system stats", "label": "system_status"}
+{"text": "quick hold the music for me", "label": "media_pause"}
+{"text": "can you prior workspace please", "label": "workspace_previous"}
+{"text": "optimize the database query indices for postgres for me", "label": "hard_goal"}
+{"text": "move focus left", "label": "window_focus_left"}
+{"text": "uh log me out real quick", "label": "system_logout"}
+{"text": "can you flash note: check PipeWire audio configuration for latency", "label": "flash_note_add"}
+{"text": "hey gideon raise brightness now", "label": "brightness_up"}
+{"text": "real quick unmute audio", "label": "audio_unmute"}
+{"text": "can you change wallpaper to ~/Pictures/wallpapers/forest.jpg", "label": "omarchy_wallpaper_set"}
+{"text": "hey gideon focus window up please", "label": "window_focus_up"}
+{"text": "apply dark theme please", "label": "omarchy_theme_dark"}
+{"text": "gideon please check study progress overview", "label": "study_status_view"}
+{"text": "ok gideon silence audio real quick", "label": "audio_mute"}
+{"text": "i want you to view desktop keybindings", "label": "omarchy_keybindings"}
+{"text": "uh pause media", "label": "media_pause"}
+{"text": "real quick switch to dark theme please", "label": "omarchy_theme_dark"}
+{"text": "please skip track", "label": "media_next"}
+{"text": "go to workspace 7", "label": "workspace_switch"}
+{"text": "gideon switch audio to headphones", "label": "audio_output_headphones"}
+{"text": "focus bottom window for me", "label": "window_focus_down"}
+{"text": "yo gideon resume audio", "label": "media_play"}
+{"text": "return to previous workspace", "label": "workspace_previous"}
+{"text": "quick open brave", "label": "launch_brave"}
+{"text": "quick start vscode", "label": "launch_code"}
+{"text": "use Matte Black theme now", "label": "omarchy_theme_set"}
+{"text": "ok gideon next track real quick", "label": "media_next"}
+{"text": "i want you to debug this memory leak in the c extension please", "label": "hard_goal"}
+{"text": "yo gideon make window floating real quick", "label": "window_floating_toggle"}
+{"text": "gideon float active window real quick", "label": "window_floating_toggle"}
+{"text": "could you set brightness to 90%", "label": "brightness_set"}
+{"text": "volume to 60%", "label": "audio_volume_set"}
+{"text": "gideon please autofill my shipping address in the browser form", "label": "browser_use_passthrough"}
+{"text": "move focus left now", "label": "window_focus_left"}
+{"text": "hey resume playback", "label": "media_play"}
+{"text": "i want you to dim the screen", "label": "brightness_down"}
+{"text": "yo gideon power down workstation now", "label": "system_shutdown"}
+{"text": "quick open files app now", "label": "launch_file_manager"}
+{"text": "can you open study workspace for phy_02", "label": "study_sprint_start"}
+{"text": "quick focus window right thanks", "label": "window_focus_right"}
+{"text": "start drill session on che_01", "label": "study_sprint_start"}
+{"text": "quick set output to speakers", "label": "audio_output_speakers"}
+{"text": "uh use speakers", "label": "audio_output_speakers"}
+{"text": "hey next track now", "label": "media_next"}
+{"text": "gideon please what reviews are due today thanks", "label": "study_queue_view"}
+{"text": "change wallpaper to /usr/share/backgrounds/nature.png real quick", "label": "omarchy_wallpaper_set"}
+{"text": "just move to workspace 6", "label": "workspace_switch"}
+{"text": "real quick move to workspace 6", "label": "workspace_switch"}
+{"text": "please brightness 40 percent", "label": "brightness_set"}
+{"text": "just launch obsidian real quick", "label": "launch_obsidian"}
+{"text": "unpause spotify please", "label": "media_play"}
+{"text": "uh focus window down now", "label": "window_focus_down"}
+{"text": "can you set theme to Flexoki Light", "label": "omarchy_theme_set"}
+{"text": "hey show study progress thanks", "label": "study_status_view"}
+{"text": "hey gideon begin recall session for thermodynamics", "label": "study_sprint_start"}
+{"text": "ok gideon turn volume up", "label": "audio_volume_up"}
+{"text": "flash note: remember to review gauss's law before tomorrow's sprint", "label": "flash_note_add"}
+{"text": "yo gideon toggle audio mute now", "label": "audio_mute_toggle"}
+{"text": "uh log me out please", "label": "system_logout"}
+{"text": "gideon switch mic mute state", "label": "audio_mic_mute_toggle"}
+{"text": "shut down computer now", "label": "system_shutdown"}
+{"text": "can you launch visual studio code please", "label": "launch_code"}
+{"text": "could you toggle mic mute", "label": "audio_mic_mute_toggle"}
+{"text": "click the login button on the webpage", "label": "browser_use_passthrough"}
+{"text": "ok gideon lock session", "label": "system_lock"}
+{"text": "jot this down: matrix multiplication is associative but not commutative", "label": "flash_note_add"}
+{"text": "please launch vs code", "label": "launch_code"}
+{"text": "i want you to system shutdown real quick", "label": "system_shutdown"}
+{"text": "ok gideon start kitty terminal", "label": "launch_terminal"}
+{"text": "just delete all temporary files in the cache directory using python", "label": "hard_goal"}
+{"text": "hey next desktop wallpaper please", "label": "omarchy_wallpaper_next"}
+{"text": "just who are you real quick", "label": "conversation"}
+{"text": "please route audio to speakers thanks", "label": "audio_output_speakers"}
+{"text": "hey mute volume thanks", "label": "audio_mute"}
+{"text": "i want you to set light theme in omarchy real quick", "label": "omarchy_theme_light"}
+{"text": "hey start study sprint for phy_01 real quick", "label": "study_sprint_start"}
+{"text": "ok gideon open obsidian real quick", "label": "launch_obsidian"}
+{"text": "gideon open file explorer now", "label": "launch_file_manager"}
+{"text": "hey gideon update omarchy for me", "label": "omarchy_update"}
+{"text": "quick open code real quick", "label": "launch_code"}
+{"text": "quick view study queue now", "label": "study_queue_view"}
+{"text": "real quick open spotify thanks", "label": "launch_spotify"}
+{"text": "turn mic back on now", "label": "audio_mic_unmute"}
+{"text": "i want you to continue music real quick", "label": "media_play"}
+{"text": "can you toggle mic mute", "label": "audio_mic_mute_toggle"}
+{"text": "what is my study burndown now", "label": "study_status_view"}
+{"text": "gideon please toggle microphone", "label": "audio_mic_mute_toggle"}
+{"text": "yo gideon exit desktop session real quick", "label": "system_logout"}
+{"text": "please switch to previous workspace please", "label": "workspace_previous"}
+{"text": "quick focus right pane", "label": "window_focus_right"}
+{"text": "can you open thunar for me", "label": "launch_file_manager"}
+{"text": "uh take a note: remember to review Gauss's Law before tomorrow's sprint", "label": "flash_note_add"}
+{"text": "gideon please unpause spotify", "label": "media_play"}
+{"text": "hey gideon open obsidian notes", "label": "launch_obsidian"}
+{"text": "please go to prior workspace", "label": "workspace_prev"}
+{"text": "can you logout of desktop thanks", "label": "system_logout"}
+{"text": "uh logout of desktop please", "label": "system_logout"}
+{"text": "freeze playback now", "label": "media_pause"}
+{"text": "launch the spotify app thanks", "label": "launch_spotify"}
+{"text": "could you move focus up now", "label": "window_focus_up"}
+{"text": "quick system reboot now for me", "label": "system_reboot"}
+{"text": "can you start vscode thanks", "label": "launch_code"}
+{"text": "set sound to 50 percent", "label": "audio_volume_set"}
+{"text": "toggle sound mute please", "label": "audio_mute_toggle"}
+{"text": "yo gideon start vscode", "label": "launch_code"}
+{"text": "hey play pause toggle now", "label": "media_play_pause"}
+{"text": "could you show omarchy keybindings real quick", "label": "omarchy_keybindings"}
+{"text": "hey gideon stop playing audio", "label": "media_stop"}
+{"text": "switch audio to headphones real quick", "label": "audio_output_headphones"}
+{"text": "i want you to unmute mic now", "label": "audio_mic_unmute"}
+{"text": "ok gideon switch to bottom window thanks", "label": "window_focus_down"}
+{"text": "change theme to Everforest", "label": "omarchy_theme_set"}
+{"text": "quick move to workspace 4", "label": "workspace_switch"}
+{"text": "hey toggle mic mute real quick", "label": "audio_mic_mute_toggle"}
+{"text": "cycle to next omarchy theme", "label": "omarchy_theme_next"}
+{"text": "move focus up please", "label": "window_focus_up"}
+{"text": "ok gideon find latest stock price of nvidia for me", "label": "web_search"}
+{"text": "please route audio to speakers", "label": "audio_output_speakers"}
+{"text": "switch mic mute state please", "label": "audio_mic_mute_toggle"}
+{"text": "hey gideon switch to bottom window now", "label": "window_focus_down"}
+{"text": "adjust brightness to 85%", "label": "brightness_set"}
+{"text": "ok gideon log out of session for me", "label": "system_logout"}
+{"text": "gideon please go to workspace 10", "label": "workspace_switch"}
+{"text": "unmute sound please", "label": "audio_unmute"}
+{"text": "just lock the workstation please", "label": "system_lock"}
+{"text": "gideon lower audio level", "label": "audio_volume_down"}
+{"text": "hey volume up thanks", "label": "audio_volume_up"}
+{"text": "gideon focus upper window for me", "label": "window_focus_up"}
+{"text": "i want you to toggle floating window now", "label": "window_floating_toggle"}
+{"text": "gideon please turn the sound back on", "label": "audio_unmute"}
+{"text": "hey gideon restart computer", "label": "system_reboot"}
+{"text": "mute sound please", "label": "audio_mute"}
+{"text": "real quick lower brightness", "label": "brightness_down"}
+{"text": "hey switch to top window now", "label": "window_focus_up"}
+{"text": "hey prior song for me", "label": "media_previous"}
+{"text": "uh set output to headphones", "label": "audio_output_headphones"}
+{"text": "real quick engine opencode", "label": "engine_switch"}
+{"text": "toggle speakers mute now", "label": "audio_mute_toggle"}
+{"text": "i want you to focus window right now", "label": "window_focus_right"}
+{"text": "yo gideon engine agy", "label": "engine_switch"}
+{"text": "apply retro 82 theme", "label": "omarchy_theme_set"}
+{"text": "just what is my study burndown", "label": "study_status_view"}
+{"text": "real quick launch vs code", "label": "launch_code"}
+{"text": "just read the text in the active browser tab", "label": "browser_use_passthrough"}
+{"text": "quick what reviews are due today now", "label": "study_queue_view"}
+{"text": "gideon log me out thanks", "label": "system_logout"}
+{"text": "hey change model engine", "label": "engine_switch"}
+{"text": "just toggle sound mute for me", "label": "audio_mute_toggle"}
+{"text": "please start spotify app for me", "label": "launch_spotify"}
+{"text": "i want you to restore audio please", "label": "audio_unmute"}
+{"text": "yo gideon unmute output", "label": "audio_unmute"}
+{"text": "ok gideon jump back to last workspace thanks", "label": "workspace_previous"}
+{"text": "just move focus right", "label": "window_focus_right"}
+{"text": "please apply background image ~/downloads/cyberpunk.png now", "label": "omarchy_wallpaper_set"}
+{"text": "uh close this window", "label": "window_close"}
+{"text": "open files folder now", "label": "launch_file_manager"}
+{"text": "could you silence the mic for me", "label": "audio_mic_mute"}
+{"text": "shut off audio", "label": "audio_mute"}
+{"text": "upgrade system packages for me", "label": "omarchy_update"}
+{"text": "can you fullscreen active window", "label": "window_fullscreen_toggle"}
+{"text": "hey make window floating thanks", "label": "window_floating_toggle"}
+{"text": "uh open visual studio code for me", "label": "launch_code"}
+{"text": "hey gideon show revision queue", "label": "study_queue_view"}
+{"text": "i want you to play media please", "label": "media_play"}
+{"text": "real quick next desktop wallpaper please", "label": "omarchy_wallpaper_next"}
+{"text": "gideon please prior workspace", "label": "workspace_previous"}
+{"text": "uh volume up now", "label": "audio_volume_up"}
+{"text": "ok gideon log out of session thanks", "label": "system_logout"}
+{"text": "open spotify client", "label": "launch_spotify"}
+{"text": "restart computer please", "label": "system_reboot"}
+{"text": "yo gideon show all omarchy themes", "label": "omarchy_theme_list"}
+{"text": "can you set wallpaper to ~/downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "i want you to move focus right thanks", "label": "window_focus_right"}
+{"text": "please what reviews are due today", "label": "study_queue_view"}
+{"text": "could you turn volume up", "label": "audio_volume_up"}
+{"text": "gideon power off machine real quick", "label": "system_shutdown"}
+{"text": "gideon please toggle fullscreen", "label": "window_fullscreen_toggle"}
+{"text": "could you toggle window float real quick", "label": "window_floating_toggle"}
+{"text": "can you apply light theme real quick", "label": "omarchy_theme_light"}
+{"text": "real quick show study traps for phy_02", "label": "study_traps_view"}
+{"text": "yo gideon system reboot now please", "label": "system_reboot"}
+{"text": "just show revision queue now", "label": "study_queue_view"}
+{"text": "can you open visual studio code", "label": "launch_code"}
+{"text": "gideon please mute speakers", "label": "audio_mute"}
+{"text": "hey gideon switch to top window for me", "label": "window_focus_up"}
+{"text": "apply background image ~/downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "just raise the volume", "label": "audio_volume_up"}
+{"text": "optimize the database query indices for postgres thanks", "label": "hard_goal"}
+{"text": "real quick validate ledger integrity", "label": "study_doctor"}
+{"text": "hey gideon switch to next theme now", "label": "omarchy_theme_next"}
+{"text": "real quick open files app real quick", "label": "launch_file_manager"}
+{"text": "uh list omarchy themes now", "label": "omarchy_theme_list"}
+{"text": "hey validate ledger integrity real quick", "label": "study_doctor"}
+{"text": "quick focus bottom window real quick", "label": "window_focus_down"}
+{"text": "i want you to create a dockerfile and docker-compose for the service now", "label": "hard_goal"}
+{"text": "just play pause toggle please", "label": "media_play_pause"}
+{"text": "can you set wallpaper to ~/Pictures/wallpapers/forest.jpg now", "label": "omarchy_wallpaper_set"}
+{"text": "jot this down: the work function depends on metal surface properties for me", "label": "flash_note_add"}
+{"text": "view traps for Electrostatics", "label": "study_traps_view"}
+{"text": "quick show all omarchy themes", "label": "omarchy_theme_list"}
+{"text": "hey gideon list omarchy themes thanks", "label": "omarchy_theme_list"}
+{"text": "yo gideon launch brave browser", "label": "launch_brave"}
+{"text": "hey switch to next workspace please", "label": "workspace_next"}
+{"text": "open keybinding menu", "label": "omarchy_keybindings"}
+{"text": "real quick skip track now", "label": "media_next"}
+{"text": "uh cycle theme now", "label": "omarchy_theme_next"}
+{"text": "ok gideon set theme to Lupine", "label": "omarchy_theme_set"}
+{"text": "apply Rose Pine theme", "label": "omarchy_theme_set"}
+{"text": "ok gideon type my username into the web input field for me", "label": "browser_use_passthrough"}
+{"text": "could you focus left window", "label": "window_focus_left"}
+{"text": "please mute volume", "label": "audio_mute"}
+{"text": "just reboot system now", "label": "system_reboot"}
+{"text": "gideon switch sound to speakers", "label": "audio_output_speakers"}
+{"text": "could you raise display brightness please", "label": "brightness_up"}
+{"text": "hey advance to next workspace please", "label": "workspace_next"}
+{"text": "gideon please toggle full screen", "label": "window_fullscreen_toggle"}
+{"text": "real quick restart computer", "label": "system_reboot"}
+{"text": "focus right window", "label": "window_focus_right"}
+{"text": "yo gideon play previous track real quick", "label": "media_previous"}
+{"text": "quick toggle floating window real quick", "label": "window_floating_toggle"}
+{"text": "i want you to go back a song", "label": "media_previous"}
+{"text": "hey gideon go back a song", "label": "media_previous"}
+{"text": "real quick last workspace", "label": "workspace_previous"}
+{"text": "real quick use speakers", "label": "audio_output_speakers"}
+{"text": "just workspace minus one", "label": "workspace_prev"}
+{"text": "can you switch audio mute thanks", "label": "audio_mute_toggle"}
+{"text": "terminate active window for me", "label": "window_close"}
+{"text": "engine opencode thanks", "label": "engine_switch"}
+{"text": "ok gideon next background real quick", "label": "omarchy_wallpaper_next"}
+{"text": "hey gideon update system and omarchy please", "label": "omarchy_update"}
+{"text": "gideon please resume music", "label": "media_play"}
+{"text": "gideon drop volume by 5 percent", "label": "audio_volume_down"}
+{"text": "switch sound to headset for me", "label": "audio_output_headphones"}
+{"text": "gideon focus window right please", "label": "window_focus_right"}
+{"text": "what themes are installed for me", "label": "omarchy_theme_list"}
+{"text": "can you list themes please", "label": "omarchy_theme_list"}
+{"text": "what are the core principles of quantum mechanics for me", "label": "conversation"}
+{"text": "tell me a joke about computer science now", "label": "conversation"}
+{"text": "please log out of session now", "label": "system_logout"}
+{"text": "could you lower brightness", "label": "brightness_down"}
+{"text": "i want you to turn off microphone for me", "label": "audio_mic_mute"}
+{"text": "apply dark theme for me", "label": "omarchy_theme_dark"}
+{"text": "real quick bring volume down", "label": "audio_volume_down"}
+{"text": "enable dark mode for me", "label": "omarchy_theme_dark"}
+{"text": "quick mute sound", "label": "audio_mute"}
+{"text": "ok gideon toggle music playback", "label": "media_play_pause"}
+{"text": "who are you real quick", "label": "conversation"}
+{"text": "resume music thanks", "label": "media_play"}
+{"text": "just restart machine", "label": "system_reboot"}
+{"text": "could you open notes app", "label": "launch_obsidian"}
+{"text": "please focus window down thanks", "label": "window_focus_down"}
+{"text": "gideon please halt playback", "label": "media_stop"}
+{"text": "could you toggle floating window real quick", "label": "window_floating_toggle"}
+{"text": "just focus window up thanks", "label": "window_focus_up"}
+{"text": "can you play media for me", "label": "media_play"}
+{"text": "hey start brave", "label": "launch_brave"}
+{"text": "advance to next workspace please", "label": "workspace_next"}
+{"text": "just web search recent developments in fusion energy", "label": "web_search"}
+{"text": "can you toggle microphone mute for me", "label": "audio_mic_mute_toggle"}
+{"text": "gideon start spotify app", "label": "launch_spotify"}
+{"text": "yo gideon open thunar now", "label": "launch_file_manager"}
+{"text": "quick show available themes", "label": "omarchy_theme_list"}
+{"text": "uh skip track", "label": "media_next"}
+{"text": "decrease volume by 5%", "label": "audio_volume_down"}
+{"text": "yo gideon continue playing the song", "label": "media_play"}
+{"text": "just brightness 85 percent please", "label": "brightness_set"}
+{"text": "i want you to next theme real quick", "label": "omarchy_theme_next"}
+{"text": "quick cycle wallpaper real quick", "label": "omarchy_wallpaper_next"}
+{"text": "unmute microphone real quick", "label": "audio_mic_unmute"}
+{"text": "real quick enable light mode real quick", "label": "omarchy_theme_light"}
+{"text": "turn volume down thanks", "label": "audio_volume_down"}
+{"text": "ok gideon toggle microphone mute now", "label": "audio_mic_mute_toggle"}
+{"text": "turn volume to 0", "label": "audio_volume_set"}
+{"text": "uh maximize window toggle", "label": "window_fullscreen_toggle"}
+{"text": "real quick autofill my shipping address in the browser form", "label": "browser_use_passthrough"}
+{"text": "ok gideon reduce the volume", "label": "audio_volume_down"}
+{"text": "hey fullscreen screenshot", "label": "omarchy_screenshot_full"}
+{"text": "ok gideon exit desktop session", "label": "system_logout"}
+{"text": "just go to next workspace please", "label": "workspace_next"}
+{"text": "hey show omarchy keybindings", "label": "omarchy_keybindings"}
+{"text": "reboot computer for me", "label": "system_reboot"}
+{"text": "ok gideon display cpu and memory usage", "label": "system_status"}
+{"text": "ok gideon start obsidian vault real quick", "label": "launch_obsidian"}
+{"text": "gideon go to prior workspace thanks", "label": "workspace_prev"}
+{"text": "toggle sound mute for me", "label": "audio_mute_toggle"}
+{"text": "hey focus left pane for me", "label": "window_focus_left"}
+{"text": "gideon shut down computer for me", "label": "system_shutdown"}
+{"text": "close current app window real quick", "label": "window_close"}
+{"text": "uh fullscreen screenshot please", "label": "omarchy_screenshot_full"}
+{"text": "launch spotify now", "label": "launch_spotify"}
+{"text": "yo gideon switch to next workspace real quick", "label": "workspace_next"}
+{"text": "view study telemetry now", "label": "study_status_view"}
+{"text": "next background real quick", "label": "omarchy_wallpaper_next"}
+{"text": "could you brightness 100 percent please", "label": "brightness_set"}
+{"text": "forward track real quick", "label": "media_next"}
+{"text": "yo gideon turn the sound back on thanks", "label": "audio_unmute"}
+{"text": "ok gideon make window fullscreen now", "label": "window_fullscreen_toggle"}
+{"text": "real quick start vscode", "label": "launch_code"}
+{"text": "switch to agy", "label": "engine_switch"}
+{"text": "view traps for che_02", "label": "study_traps_view"}
+{"text": "real quick upgrade system packages real quick", "label": "omarchy_update"}
+{"text": "please run system update now", "label": "omarchy_update"}
+{"text": "yo gideon open command line terminal now", "label": "launch_terminal"}
+{"text": "ok gideon toggle floating state real quick", "label": "window_floating_toggle"}
+{"text": "gideon skip this song thanks", "label": "media_next"}
+{"text": "real quick close window now", "label": "window_close"}
+{"text": "yo gideon system performance stats", "label": "system_status"}
+{"text": "uh change wallpaper to ~/Downloads/cyberpunk.png please", "label": "omarchy_wallpaper_set"}
+{"text": "i want you to freeze playback thanks", "label": "media_pause"}
+{"text": "play media please", "label": "media_play"}
+{"text": "hey capture full screen", "label": "omarchy_screenshot_full"}
+{"text": "ok gideon unmute mic", "label": "audio_mic_unmute"}
+{"text": "can you return to previous workspace", "label": "workspace_previous"}
+{"text": "just cycle wallpaper now", "label": "omarchy_wallpaper_next"}
+{"text": "just system shutdown", "label": "system_shutdown"}
+{"text": "search the web for latest space news now", "label": "web_search"}
+{"text": "flash note: IAT registration deadline is next Monday", "label": "flash_note_add"}
+{"text": "build an end to end test pipeline in pytest", "label": "hard_goal"}
+{"text": "ok gideon what are the core principles of quantum mechanics", "label": "conversation"}
+{"text": "change volume to 25 real quick", "label": "audio_volume_set"}
+{"text": "just go to next workspace", "label": "workspace_next"}
+{"text": "uh next background for me", "label": "omarchy_wallpaper_next"}
+{"text": "quick previous workspace relative now", "label": "workspace_prev"}
+{"text": "apply matte black theme", "label": "omarchy_theme_set"}
+{"text": "just mute microphone please", "label": "audio_mic_mute"}
+{"text": "i want you to move focus left for me", "label": "window_focus_left"}
+{"text": "gideon switch to bright theme", "label": "omarchy_theme_light"}
+{"text": "could you return to previous workspace real quick", "label": "workspace_previous"}
+{"text": "silence the mic", "label": "audio_mic_mute"}
+{"text": "what misconceptions exist in Chemical Kinetics", "label": "study_traps_view"}
+{"text": "hey gideon switch to dark style now", "label": "omarchy_theme_dark"}
+{"text": "set theme to catppuccin latte", "label": "omarchy_theme_set"}
+{"text": "real quick go to workspace 8", "label": "workspace_switch"}
+{"text": "gideon open obsidian notes please", "label": "launch_obsidian"}
+{"text": "hey show system stats real quick", "label": "system_status"}
+{"text": "could you focus bottom window please", "label": "window_focus_down"}
+{"text": "please lock session real quick", "label": "system_lock"}
+{"text": "change theme to Gruvbox", "label": "omarchy_theme_set"}
+{"text": "quick find latest stock price of nvidia", "label": "web_search"}
+{"text": "gideon please toggle music playback now", "label": "media_play_pause"}
+{"text": "i want you to focus bottom window now", "label": "window_focus_down"}
+{"text": "gideon run system update thanks", "label": "omarchy_update"}
+{"text": "quick launch spotify", "label": "launch_spotify"}
+{"text": "hey gideon launch brave browser real quick", "label": "launch_brave"}
+{"text": "gideon set output to headphones now", "label": "audio_output_headphones"}
+{"text": "could you toggle audio mute real quick", "label": "audio_mute_toggle"}
+{"text": "gideon automate workspace switching using a bash daemon", "label": "hard_goal"}
+{"text": "previous workspace relative", "label": "workspace_prev"}
+{"text": "ok gideon previous song for me", "label": "media_previous"}
+{"text": "uh launch browser", "label": "launch_browser"}
+{"text": "can you toggle window float thanks", "label": "window_floating_toggle"}
+{"text": "take full screenshot and save please", "label": "omarchy_screenshot_full"}
+{"text": "just view desktop keybindings please", "label": "omarchy_keybindings"}
+{"text": "focus left window", "label": "window_focus_left"}
+{"text": "yo gideon launch brave browser for me", "label": "launch_brave"}
+{"text": "hey gideon open obsidian notes real quick", "label": "launch_obsidian"}
+{"text": "i want you to raise display brightness thanks", "label": "brightness_up"}
+{"text": "gideon set light theme in omarchy", "label": "omarchy_theme_light"}
+{"text": "gideon please use opencode engine", "label": "engine_switch"}
+{"text": "hey gideon toggle fullscreen", "label": "window_fullscreen_toggle"}
+{"text": "can you how is system health real quick", "label": "system_status"}
+{"text": "focus upper window please", "label": "window_focus_up"}
+{"text": "ok gideon open terminal please", "label": "launch_terminal"}
+{"text": "screen brightness 100%", "label": "brightness_set"}
+{"text": "i want you to change volume to 5", "label": "audio_volume_set"}
+{"text": "hey gideon launch file manager real quick", "label": "launch_file_manager"}
+{"text": "ok gideon open thunar for me", "label": "launch_file_manager"}
+{"text": "hey advance to next workspace", "label": "workspace_next"}
+{"text": "uh put the volume at 70%", "label": "audio_volume_set"}
+{"text": "can you launch brave please", "label": "launch_brave"}
+{"text": "gideon please check study consistency", "label": "study_doctor"}
+{"text": "real quick turn on light mode", "label": "omarchy_theme_light"}
+{"text": "hey toggle window float", "label": "window_floating_toggle"}
+{"text": "gideon please open file explorer", "label": "launch_file_manager"}
+{"text": "could you update system and omarchy", "label": "omarchy_update"}
+{"text": "real quick snip region on screen", "label": "omarchy_screenshot"}
+{"text": "could you turn it down", "label": "audio_volume_down"}
+{"text": "can you focus left pane real quick", "label": "window_focus_left"}
+{"text": "real quick shut down computer real quick", "label": "system_shutdown"}
+{"text": "just check system status", "label": "system_status"}
+{"text": "real quick go to workspace 6", "label": "workspace_switch"}
+{"text": "could you restart computer", "label": "system_reboot"}
+{"text": "can you display theme list real quick", "label": "omarchy_theme_list"}
+{"text": "set volume to 95", "label": "audio_volume_set"}
+{"text": "increase brightness by 15% please", "label": "brightness_up"}
+{"text": "can you change wallpaper to ~/Downloads/cyberpunk.png thanks", "label": "omarchy_wallpaper_set"}
+{"text": "hey softer please now", "label": "audio_volume_down"}
+{"text": "just show keyboard shortcuts now", "label": "omarchy_keybindings"}
+{"text": "just search google for today's breaking news", "label": "web_search"}
+{"text": "halt playback", "label": "media_stop"}
+{"text": "gideon please navigate to the settings tab in the web app", "label": "browser_use_passthrough"}
+{"text": "yo gideon open web browser for me", "label": "launch_browser"}
+{"text": "switch to light theme for me", "label": "omarchy_theme_light"}
+{"text": "ok gideon unmute volume", "label": "audio_unmute"}
+{"text": "log out of session", "label": "system_logout"}
+{"text": "could you show available themes", "label": "omarchy_theme_list"}
+{"text": "gideon please cycle to next omarchy theme for me", "label": "omarchy_theme_next"}
+{"text": "hey gideon start spotify app real quick", "label": "launch_spotify"}
+{"text": "just float active window thanks", "label": "window_floating_toggle"}
+{"text": "real quick take full screenshot and save", "label": "omarchy_screenshot_full"}
+{"text": "gideon show all omarchy themes thanks", "label": "omarchy_theme_list"}
+{"text": "i want you to open brave real quick", "label": "launch_brave"}
+{"text": "quick log out of session please", "label": "system_logout"}
+{"text": "switch to agy for me", "label": "engine_switch"}
+{"text": "ok gideon return to previous workspace", "label": "workspace_previous"}
+{"text": "yo gideon open notes app now", "label": "launch_obsidian"}
+{"text": "what misconceptions exist in phy_01", "label": "study_traps_view"}
+{"text": "quick move focus right real quick", "label": "window_focus_right"}
+{"text": "just set display brightness to 60 now", "label": "brightness_set"}
+{"text": "could you open kitty thanks", "label": "launch_terminal"}
+{"text": "ok gideon shut down computer", "label": "system_shutdown"}
+{"text": "quick set dark theme in omarchy now", "label": "omarchy_theme_dark"}
+{"text": "implement a quicksort algorithm in c++", "label": "hard_goal"}
+{"text": "uh list themes", "label": "omarchy_theme_list"}
+{"text": "yo gideon lock session thanks", "label": "system_lock"}
+{"text": "just change wallpaper to ~/pictures/wallpapers/forest.jpg", "label": "omarchy_wallpaper_set"}
+{"text": "brightness 5 percent", "label": "brightness_set"}
+{"text": "please restart computer real quick", "label": "system_reboot"}
+{"text": "change wallpaper to ~/downloads/cyberpunk.png real quick", "label": "omarchy_wallpaper_set"}
+{"text": "ok gideon play next track", "label": "media_next"}
+{"text": "open obsidian notes please", "label": "launch_obsidian"}
+{"text": "ok gideon reboot system real quick", "label": "system_reboot"}
+{"text": "could you mute sound", "label": "audio_mute"}
+{"text": "can you resume music", "label": "media_play"}
+{"text": "i want you to begin recall session for Thermodynamics", "label": "study_sprint_start"}
+{"text": "can you automate workspace switching using a bash daemon", "label": "hard_goal"}
+{"text": "please what study sessions are due", "label": "study_queue_view"}
+{"text": "gideon launch obsidian", "label": "launch_obsidian"}
+{"text": "toggle mute real quick", "label": "audio_mute_toggle"}
+{"text": "hey volume up for me", "label": "audio_volume_up"}
+{"text": "enable dark mode thanks", "label": "omarchy_theme_dark"}
+{"text": "view desktop keybindings real quick", "label": "omarchy_keybindings"}
+{"text": "i want you to toggle microphone now", "label": "audio_mic_mute_toggle"}
+{"text": "switch to workspace 9", "label": "workspace_switch"}
+{"text": "hyprland shortcut lookup real quick", "label": "omarchy_keybindings"}
+{"text": "just reboot computer", "label": "system_reboot"}
+{"text": "i want you to screenshot area thanks", "label": "omarchy_screenshot"}
+{"text": "next track now", "label": "media_next"}
+{"text": "reboot system", "label": "system_reboot"}
+{"text": "quick switch audio to headphones", "label": "audio_output_headphones"}
+{"text": "quick pause the track real quick", "label": "media_pause"}
+{"text": "brightness 30 percent", "label": "brightness_set"}
+{"text": "restart machine thanks", "label": "system_reboot"}
+{"text": "launch vs code thanks", "label": "launch_code"}
+{"text": "play pause media thanks", "label": "media_play_pause"}
+{"text": "can you restart machine thanks", "label": "system_reboot"}
+{"text": "hey launch terminal", "label": "launch_terminal"}
+{"text": "quick apply background image ~/downloads/cyberpunk.png thanks", "label": "omarchy_wallpaper_set"}
+{"text": "gideon please log me out thanks", "label": "system_logout"}
+{"text": "yo gideon prior song now", "label": "media_previous"}
+{"text": "uh cycle to next omarchy theme please", "label": "omarchy_theme_next"}
+{"text": "can you switch to dark theme for me", "label": "omarchy_theme_dark"}
+{"text": "ok gideon show all omarchy themes thanks", "label": "omarchy_theme_list"}
+{"text": "could you previous track", "label": "media_previous"}
+{"text": "yo gideon resume playback", "label": "media_play"}
+{"text": "jump to workspace 6", "label": "workspace_switch"}
+{"text": "please focus window down real quick", "label": "window_focus_down"}
+{"text": "yo gideon toggle music playback", "label": "media_play_pause"}
+{"text": "gideon please what are my hyprland keybindings real quick", "label": "omarchy_keybindings"}
+{"text": "ok gideon use headphones", "label": "audio_output_headphones"}
+{"text": "uh what themes are installed", "label": "omarchy_theme_list"}
+{"text": "can you launch the spotify app for me", "label": "launch_spotify"}
+{"text": "gideon turn on microphone", "label": "audio_mic_unmute"}
+{"text": "unmute microphone please", "label": "audio_mic_unmute"}
+{"text": "hey shut off audio", "label": "audio_mute"}
+{"text": "can you update omarchy", "label": "omarchy_update"}
+{"text": "snip region on screen", "label": "omarchy_screenshot"}
+{"text": "please previous track now", "label": "media_previous"}
+{"text": "ok gideon switch to next theme real quick", "label": "omarchy_theme_next"}
+{"text": "could you switch to next theme now", "label": "omarchy_theme_next"}
+{"text": "gideon please open code thanks", "label": "launch_code"}
+{"text": "quick memo: remember to review gauss's law before tomorrow's sprint", "label": "flash_note_add"}
+{"text": "ok gideon run omarchy update thanks", "label": "omarchy_update"}
+{"text": "can you kill active window", "label": "window_close"}
+{"text": "gideon please previous track for me", "label": "media_previous"}
+{"text": "please start study sprint for phy_14", "label": "study_sprint_start"}
+{"text": "uh move focus down please", "label": "window_focus_down"}
+{"text": "pause music thanks", "label": "media_pause"}
+{"text": "real quick change wallpaper to ~/Downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "yo gideon apply light theme real quick", "label": "omarchy_theme_light"}
+{"text": "i want you to resume spotify for me", "label": "media_play"}
+{"text": "hey gideon open google chrome please", "label": "launch_browser"}
+{"text": "gideon move focus left for me", "label": "window_focus_left"}
+{"text": "real quick focus window right thanks", "label": "window_focus_right"}
+{"text": "ok gideon start chrome now", "label": "launch_browser"}
+{"text": "could you note down: the work function depends on metal surface properties", "label": "flash_note_add"}
+{"text": "real quick switch background image real quick", "label": "omarchy_wallpaper_next"}
+{"text": "yo gideon system shutdown now", "label": "system_shutdown"}
+{"text": "hey pause music please", "label": "media_pause"}
+{"text": "please screenshot area now", "label": "omarchy_screenshot"}
+{"text": "yo gideon focus bottom window please", "label": "window_focus_down"}
+{"text": "gideon set light theme in omarchy please", "label": "omarchy_theme_light"}
+{"text": "i want you to upgrade system packages", "label": "omarchy_update"}
+{"text": "ok gideon volume up 25 percent", "label": "audio_volume_up"}
+{"text": "uh unmute audio thanks", "label": "audio_unmute"}
+{"text": "set sound to 80 percent for me", "label": "audio_volume_set"}
+{"text": "next desktop wallpaper real quick", "label": "omarchy_wallpaper_next"}
+{"text": "flash note: matrix multiplication is associative but not commutative real quick", "label": "flash_note_add"}
+{"text": "gideon please pause playback", "label": "media_pause"}
+{"text": "can you run doctor on study system", "label": "study_doctor"}
+{"text": "just go to next workspace now", "label": "workspace_next"}
+{"text": "can you lock screen now", "label": "system_lock"}
+{"text": "yo gideon focus right window for me", "label": "window_focus_right"}
+{"text": "apply Catppuccin Latte theme", "label": "omarchy_theme_set"}
+{"text": "start drill session on mat_01", "label": "study_sprint_start"}
+{"text": "uh what are my hyprland keybindings", "label": "omarchy_keybindings"}
+{"text": "ok gideon softer please", "label": "audio_volume_down"}
+{"text": "just start spotify app now", "label": "launch_spotify"}
+{"text": "gideon please capture full screen please", "label": "omarchy_screenshot_full"}
+{"text": "when should we stop training the neural net please", "label": "conversation"}
+{"text": "restart machine real quick", "label": "system_reboot"}
+{"text": "can you kill music playback", "label": "media_stop"}
+{"text": "hey toggle audio mute real quick", "label": "audio_mute_toggle"}
+{"text": "ok gideon switch to light theme", "label": "omarchy_theme_light"}
+{"text": "real quick toggle floating state thanks", "label": "window_floating_toggle"}
+{"text": "just kill music playback", "label": "media_stop"}
+{"text": "hey switch to workspace 5", "label": "workspace_switch"}
+{"text": "open obsidian notes thanks", "label": "launch_obsidian"}
+{"text": "please restore audio real quick", "label": "audio_unmute"}
+{"text": "quick view study status", "label": "study_status_view"}
+{"text": "hey gideon show available themes now", "label": "omarchy_theme_list"}
+{"text": "switch to dark style real quick", "label": "omarchy_theme_dark"}
+{"text": "gideon please system performance stats real quick", "label": "system_status"}
+{"text": "real quick show chapter ranks and mastery now", "label": "study_status_view"}
+{"text": "yo gideon toggle window float please", "label": "window_floating_toggle"}
+{"text": "gideon toggle microphone mute for me", "label": "audio_mic_mute_toggle"}
+{"text": "quick open spotify please", "label": "launch_spotify"}
+{"text": "volume up 5 percent thanks", "label": "audio_volume_up"}
+{"text": "can you switch to bottom window", "label": "window_focus_down"}
+{"text": "yo gideon switch sound to speakers real quick", "label": "audio_output_speakers"}
+{"text": "quick launch the spotify app", "label": "launch_spotify"}
+{"text": "hey lower brightness", "label": "brightness_down"}
+{"text": "quick turn brightness up", "label": "brightness_up"}
+{"text": "refactor the websocket server to use asyncio streams now", "label": "hard_goal"}
+{"text": "unmute mic for me", "label": "audio_mic_unmute"}
+{"text": "please enable mic input real quick", "label": "audio_mic_unmute"}
+{"text": "can you launch the spotify app thanks", "label": "launch_spotify"}
+{"text": "hey gideon focus upper window now", "label": "window_focus_up"}
+{"text": "just find latest stock price of nvidia now", "label": "web_search"}
+{"text": "quick launch the spotify app now", "label": "launch_spotify"}
+{"text": "hey jump to workspace 7", "label": "workspace_switch"}
+{"text": "ok gideon prior song", "label": "media_previous"}
+{"text": "toggle mic mute", "label": "audio_mic_mute_toggle"}
+{"text": "sound level 60", "label": "audio_volume_set"}
+{"text": "change wallpaper to ~/Downloads/cyberpunk.png thanks", "label": "omarchy_wallpaper_set"}
+{"text": "yo gideon maximize window toggle", "label": "window_fullscreen_toggle"}
+{"text": "hey launch the spotify app for me", "label": "launch_spotify"}
+{"text": "gideon move focus right thanks", "label": "window_focus_right"}
+{"text": "quick take me to workspace 9", "label": "workspace_switch"}
+{"text": "how does a transformer neural network attention mechanism work real quick", "label": "conversation"}
+{"text": "just focus window right for me", "label": "window_focus_right"}
+{"text": "real quick toggle microphone mute thanks", "label": "audio_mic_mute_toggle"}
+{"text": "put the volume at 70%", "label": "audio_volume_set"}
+{"text": "select the third option in the dropdown on the website thanks", "label": "browser_use_passthrough"}
+{"text": "unpause spotify real quick", "label": "media_play"}
+{"text": "quick toggle microphone mute real quick", "label": "audio_mic_mute_toggle"}
+{"text": "yo gideon run doctor on study system now", "label": "study_doctor"}
+{"text": "hey put the volume at 20%", "label": "audio_volume_set"}
+{"text": "gideon please silence the mic", "label": "audio_mic_mute"}
+{"text": "gideon advance to next workspace now", "label": "workspace_next"}
+{"text": "gideon launch vs code", "label": "launch_code"}
+{"text": "switch to antigravity now", "label": "engine_switch"}
+{"text": "quick toggle microphone please", "label": "audio_mic_mute_toggle"}
+{"text": "gideon please what is my study burndown", "label": "study_status_view"}
+{"text": "hey mute my mic", "label": "audio_mic_mute"}
+{"text": "ok gideon verify study ledgers real quick", "label": "study_doctor"}
+{"text": "brighten screen for me", "label": "brightness_up"}
+{"text": "gideon turn on light mode", "label": "omarchy_theme_light"}
+{"text": "real quick what misconceptions exist in phy_02", "label": "study_traps_view"}
+{"text": "yo gideon silence the speakers", "label": "audio_mute"}
+{"text": "just open file explorer", "label": "launch_file_manager"}
+{"text": "gideon continue playing the song", "label": "media_play"}
+{"text": "hey how is my exam prep burndown", "label": "study_status_view"}
+{"text": "ok gideon kill active window for me", "label": "window_close"}
+{"text": "switch to top window now", "label": "window_focus_up"}
+{"text": "yo gideon open brave browser thanks", "label": "launch_brave"}
+{"text": "turn it up please", "label": "audio_volume_up"}
+{"text": "gideon please fullscreen screenshot", "label": "omarchy_screenshot_full"}
+{"text": "gideon focus left window", "label": "window_focus_left"}
+{"text": "search google for today's breaking news for me", "label": "web_search"}
+{"text": "i want you to focus upper window now", "label": "window_focus_up"}
+{"text": "yo gideon mute voice input now", "label": "audio_mic_mute"}
+{"text": "i want you to display cpu and memory usage please", "label": "system_status"}
+{"text": "could you set wallpaper to ~/Downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "hey list themes thanks", "label": "omarchy_theme_list"}
+{"text": "open thunar", "label": "launch_file_manager"}
+{"text": "look up recent nest examination notifications thanks", "label": "web_search"}
+{"text": "gideon please lower brightness by 10%", "label": "brightness_down"}
+{"text": "hey gideon boost volume", "label": "audio_volume_up"}
+{"text": "open obsidian notes now", "label": "launch_obsidian"}
+{"text": "hey change wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "just hyprland shortcut lookup real quick", "label": "omarchy_keybindings"}
+{"text": "gideon please decrease volume by 25%", "label": "audio_volume_down"}
+{"text": "ok gideon show black book traps for mat_01", "label": "study_traps_view"}
+{"text": "hey gideon unmute mic", "label": "audio_mic_unmute"}
+{"text": "just start chrome", "label": "launch_browser"}
+{"text": "drop volume by 5 percent thanks", "label": "audio_volume_down"}
+{"text": "uh type my username into the web input field please", "label": "browser_use_passthrough"}
+{"text": "just open google chrome for me", "label": "launch_browser"}
+{"text": "could you focus left window for me", "label": "window_focus_left"}
+{"text": "can you toggle full screen", "label": "window_fullscreen_toggle"}
+{"text": "i want you to focus right window thanks", "label": "window_focus_right"}
+{"text": "quick make window floating please", "label": "window_floating_toggle"}
+{"text": "real quick workspace minus one for me", "label": "workspace_prev"}
+{"text": "yo gideon workspace minus one", "label": "workspace_prev"}
+{"text": "could you take a snip for me", "label": "omarchy_screenshot"}
+{"text": "quick jump back to last workspace please", "label": "workspace_previous"}
+{"text": "gideon please add note: the work function depends on metal surface properties now", "label": "flash_note_add"}
+{"text": "view traps for thermodynamics", "label": "study_traps_view"}
+{"text": "gideon open obsidian notes thanks", "label": "launch_obsidian"}
+{"text": "uh capture screen region", "label": "omarchy_screenshot"}
+{"text": "could you list omarchy themes please", "label": "omarchy_theme_list"}
+{"text": "uh brightness 75 percent", "label": "brightness_set"}
+{"text": "i want you to switch to preceding workspace", "label": "workspace_prev"}
+{"text": "just move focus left", "label": "window_focus_left"}
+{"text": "hey gideon toggle floating state please", "label": "window_floating_toggle"}
+{"text": "ok gideon run study doctor", "label": "study_doctor"}
+{"text": "just silence the mic", "label": "audio_mic_mute"}
+{"text": "set volume to 75% please", "label": "audio_volume_set"}
+{"text": "please exit fullscreen", "label": "window_fullscreen_toggle"}
+{"text": "can you how does gravity work according to general relativity", "label": "conversation"}
+{"text": "real quick upgrade system packages please", "label": "omarchy_update"}
+{"text": "gideon please run doctor on study system", "label": "study_doctor"}
+{"text": "show available themes thanks", "label": "omarchy_theme_list"}
+{"text": "quick close this window", "label": "window_close"}
+{"text": "i want you to toggle media playback", "label": "media_play_pause"}
+{"text": "increase volume thanks", "label": "audio_volume_up"}
+{"text": "check system status real quick", "label": "system_status"}
+{"text": "please apply light theme thanks", "label": "omarchy_theme_light"}
+{"text": "ok gideon focus bottom window real quick", "label": "window_focus_down"}
+{"text": "flash note: matrix multiplication is associative but not commutative", "label": "flash_note_add"}
+{"text": "could you toggle mute for me", "label": "audio_mute_toggle"}
+{"text": "could you screen brightness 10%", "label": "brightness_set"}
+{"text": "uh stop music now", "label": "media_stop"}
+{"text": "ok gideon switch audio to headphones for me", "label": "audio_output_headphones"}
+{"text": "quick close this window thanks", "label": "window_close"}
+{"text": "hey gideon switch background image", "label": "omarchy_wallpaper_next"}
+{"text": "hey gideon play next track for me", "label": "media_next"}
+{"text": "quick lock my desktop real quick", "label": "system_lock"}
+{"text": "quick open chrome browser thanks", "label": "launch_browser"}
+{"text": "just open files folder thanks", "label": "launch_file_manager"}
+{"text": "system performance stats", "label": "system_status"}
+{"text": "quick pause media", "label": "media_pause"}
+{"text": "focus right window now", "label": "window_focus_right"}
+{"text": "quick open command line terminal now", "label": "launch_terminal"}
+{"text": "real quick fullscreen screenshot", "label": "omarchy_screenshot_full"}
+{"text": "just engine opencode", "label": "engine_switch"}
+{"text": "just take a snip please", "label": "omarchy_screenshot"}
+{"text": "please previous workspace relative please", "label": "workspace_prev"}
+{"text": "uh reboot system", "label": "system_reboot"}
+{"text": "adjust brightness to 20%", "label": "brightness_set"}
+{"text": "gideon please prior song", "label": "media_previous"}
+{"text": "yo gideon set wallpaper to ~/Downloads/cyberpunk.png thanks", "label": "omarchy_wallpaper_set"}
+{"text": "uh pause spotify", "label": "media_pause"}
+{"text": "quick click the login button on the webpage", "label": "browser_use_passthrough"}
+{"text": "ok gideon go back a song", "label": "media_previous"}
+{"text": "hey check system status", "label": "system_status"}
+{"text": "hey gideon kill active window", "label": "window_close"}
+{"text": "unmute audio thanks", "label": "audio_unmute"}
+{"text": "quick search google for today's breaking news", "label": "web_search"}
+{"text": "jump to workspace 7 for me", "label": "workspace_switch"}
+{"text": "lock session now", "label": "system_lock"}
+{"text": "real quick switch to workspace 2", "label": "workspace_switch"}
+{"text": "uh disable mic input", "label": "audio_mic_mute"}
+{"text": "i want you to log out of session for me", "label": "system_logout"}
+{"text": "real quick move focus left", "label": "window_focus_left"}
+{"text": "hey log me out", "label": "system_logout"}
+{"text": "could you close window", "label": "window_close"}
+{"text": "can you lock the workstation", "label": "system_lock"}
+{"text": "please increase brightness by 15%", "label": "brightness_up"}
+{"text": "i want you to pause audio", "label": "media_pause"}
+{"text": "run system update for me", "label": "omarchy_update"}
+{"text": "just shut down computer now", "label": "system_shutdown"}
+{"text": "uh show study traps for che_02 thanks", "label": "study_traps_view"}
+{"text": "jot this down: remember to review gauss's law before tomorrow's sprint", "label": "flash_note_add"}
+{"text": "quick list themes please", "label": "omarchy_theme_list"}
+{"text": "gideon please look up recent nest examination notifications", "label": "web_search"}
+{"text": "yo gideon what is the derivative of sin(x) squared", "label": "conversation"}
+{"text": "i want you to kill music playback for me", "label": "media_stop"}
+{"text": "i want you to launch the spotify app for me", "label": "launch_spotify"}
+{"text": "uh shut down computer thanks", "label": "system_shutdown"}
+{"text": "yo gideon toggle media playback now", "label": "media_play_pause"}
+{"text": "adjust brightness to 80%", "label": "brightness_set"}
+{"text": "gideon check study consistency thanks", "label": "study_doctor"}
+{"text": "can you switch to right window thanks", "label": "window_focus_right"}
+{"text": "hey gideon set output to speakers now", "label": "audio_output_speakers"}
+{"text": "yo gideon raise brightness", "label": "brightness_up"}
+{"text": "uh lock computer real quick", "label": "system_lock"}
+{"text": "turn brightness down thanks", "label": "brightness_down"}
+{"text": "real quick system performance stats thanks", "label": "system_status"}
+{"text": "quick toggle music playback now", "label": "media_play_pause"}
+{"text": "yo gideon write a python script to monitor system volume", "label": "hard_goal"}
+{"text": "i want you to use antigravity engine", "label": "engine_switch"}
+{"text": "uh update system and omarchy real quick", "label": "omarchy_update"}
+{"text": "gideon please show study progress now", "label": "study_status_view"}
+{"text": "just what is my study burndown real quick", "label": "study_status_view"}
+{"text": "i want you to logout of desktop thanks", "label": "system_logout"}
+{"text": "hey make it quieter", "label": "audio_volume_down"}
+{"text": "change model engine now", "label": "engine_switch"}
+{"text": "real quick close window real quick", "label": "window_close"}
+{"text": "just search online for iat 2026 syllabus updates", "label": "web_search"}
+{"text": "gideon please volume up", "label": "audio_volume_up"}
+{"text": "start drill session on Electrostatics", "label": "study_sprint_start"}
+{"text": "ok gideon silence audio now", "label": "audio_mute"}
+{"text": "i want you to mute speakers real quick", "label": "audio_mute"}
+{"text": "real quick what are the core principles of quantum mechanics for me", "label": "conversation"}
+{"text": "could you open brave please", "label": "launch_brave"}
+{"text": "lock my desktop thanks", "label": "system_lock"}
+{"text": "quick switch to agy", "label": "engine_switch"}
+{"text": "uh increase volume thanks", "label": "audio_volume_up"}
+{"text": "open brave browser now", "label": "launch_brave"}
+{"text": "just increase volume by 5% thanks", "label": "audio_volume_up"}
+{"text": "please save full screen capture now", "label": "omarchy_screenshot_full"}
+{"text": "uh move focus down", "label": "window_focus_down"}
+{"text": "yo gideon focus bottom window", "label": "window_focus_down"}
+{"text": "could you kill active window for me", "label": "window_close"}
+{"text": "ok gideon fullscreen active window please", "label": "window_fullscreen_toggle"}
+{"text": "gideon please go back a song", "label": "media_previous"}
+{"text": "click on the blue submit button on screen now", "label": "browser_use_passthrough"}
+{"text": "hey skip to next track", "label": "media_next"}
+{"text": "can you check retention queue", "label": "study_queue_view"}
+{"text": "could you toggle mic", "label": "audio_mic_mute_toggle"}
+{"text": "gideon open keybinding menu", "label": "omarchy_keybindings"}
+{"text": "gideon set output to headphones real quick", "label": "audio_output_headphones"}
+{"text": "please power off machine", "label": "system_shutdown"}
+{"text": "lock session thanks", "label": "system_lock"}
+{"text": "yo gideon optimize the database query indices for postgres please", "label": "hard_goal"}
+{"text": "switch engine to lyra real quick", "label": "engine_switch"}
+{"text": "hey logout of desktop please", "label": "system_logout"}
+{"text": "can you open brave", "label": "launch_brave"}
+{"text": "could you decrease volume", "label": "audio_volume_down"}
+{"text": "real quick debug this memory leak in the c extension", "label": "hard_goal"}
+{"text": "yo gideon jump to workspace 10 please", "label": "workspace_switch"}
+{"text": "look up recent nest examination notifications for me", "label": "web_search"}
+{"text": "uh apply background image /usr/share/backgrounds/nature.png", "label": "omarchy_wallpaper_set"}
+{"text": "can you check study progress overview for me", "label": "study_status_view"}
+{"text": "hey enable dark mode", "label": "omarchy_theme_dark"}
+{"text": "begin recall session for mat_01 now", "label": "study_sprint_start"}
+{"text": "could you switch to preceding workspace please", "label": "workspace_prev"}
+{"text": "hey when should we stop training the neural net thanks", "label": "conversation"}
+{"text": "can you launch file manager", "label": "launch_file_manager"}
+{"text": "resume audio", "label": "media_play"}
+{"text": "gideon please toggle audio mute", "label": "audio_mute_toggle"}
+{"text": "can you mute voice input real quick", "label": "audio_mic_mute"}
+{"text": "could you focus left pane real quick", "label": "window_focus_left"}
+{"text": "apply Lumon theme", "label": "omarchy_theme_set"}
+{"text": "ok gideon set dark theme in omarchy", "label": "omarchy_theme_dark"}
+{"text": "gideon please turn it down thanks", "label": "audio_volume_down"}
+{"text": "quick extract traps for chapter thermodynamics", "label": "study_traps_view"}
+{"text": "hey maximize window toggle now", "label": "window_fullscreen_toggle"}
+{"text": "i want you to tell me a joke about computer science", "label": "conversation"}
+{"text": "toggle fullscreen thanks", "label": "window_fullscreen_toggle"}
+{"text": "please increase volume by 5%", "label": "audio_volume_up"}
+{"text": "please open terminal for me", "label": "launch_terminal"}
+{"text": "i want you to brighten screen", "label": "brightness_up"}
+{"text": "change theme to rose pine", "label": "omarchy_theme_set"}
+{"text": "who are you thanks", "label": "conversation"}
+{"text": "yo gideon what misconceptions exist in Semiconductors", "label": "study_traps_view"}
+{"text": "change wallpaper to /usr/share/backgrounds/nature.png", "label": "omarchy_wallpaper_set"}
+{"text": "please focus right pane now", "label": "window_focus_right"}
+{"text": "gideon please pause media real quick", "label": "media_pause"}
+{"text": "shut this window please", "label": "window_close"}
+{"text": "please previous track", "label": "media_previous"}
+{"text": "ok gideon apply retro 82 theme", "label": "omarchy_theme_set"}
+{"text": "gideon make window fullscreen", "label": "window_fullscreen_toggle"}
+{"text": "gideon next workspace", "label": "workspace_next"}
+{"text": "gideon open terminal thanks", "label": "launch_terminal"}
+{"text": "please search web for best hyprland plugins 2026", "label": "web_search"}
+{"text": "play next track", "label": "media_next"}
+{"text": "gideon move focus up", "label": "window_focus_up"}
+{"text": "please start vscode", "label": "launch_code"}
+{"text": "gideon open command line terminal", "label": "launch_terminal"}
+{"text": "i want you to view study telemetry", "label": "study_status_view"}
+{"text": "i want you to silence audio", "label": "audio_mute"}
+{"text": "gideon run study doctor please", "label": "study_doctor"}
+{"text": "hey gideon what is the difference between a tensor and a matrix for me", "label": "conversation"}
+{"text": "could you lock computer real quick", "label": "system_lock"}
+{"text": "hey toggle speakers mute thanks", "label": "audio_mute_toggle"}
+{"text": "gideon set wallpaper to ~/downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "gideon switch to bright theme please", "label": "omarchy_theme_light"}
+{"text": "gideon run study doctor", "label": "study_doctor"}
+{"text": "hey click the login button on the webpage", "label": "browser_use_passthrough"}
+{"text": "hey gideon engine agy real quick", "label": "engine_switch"}
+{"text": "gideon please close active window please", "label": "window_close"}
+{"text": "gideon please open study workspace for phy_14 real quick", "label": "study_sprint_start"}
+{"text": "yo gideon show keyboard shortcuts real quick", "label": "omarchy_keybindings"}
+{"text": "move focus right thanks", "label": "window_focus_right"}
+{"text": "show black book traps for phy_01 for me", "label": "study_traps_view"}
+{"text": "uh show available themes thanks", "label": "omarchy_theme_list"}
+{"text": "could you jump back to last workspace", "label": "workspace_previous"}
+{"text": "hey gideon open code editor now", "label": "launch_code"}
+{"text": "hey launch the spotify app now", "label": "launch_spotify"}
+{"text": "quick focus bottom window", "label": "window_focus_down"}
+{"text": "hey debug this memory leak in the c extension", "label": "hard_goal"}
+{"text": "i want you to switch to bottom window", "label": "window_focus_down"}
+{"text": "please show today due study cards", "label": "study_queue_view"}
+{"text": "hey gideon hyprland shortcut lookup now", "label": "omarchy_keybindings"}
+{"text": "can you turn volume down", "label": "audio_volume_down"}
+{"text": "i want you to silence the mic please", "label": "audio_mic_mute"}
+{"text": "switch sound to headset real quick", "label": "audio_output_headphones"}
+{"text": "hey go back a song thanks", "label": "media_previous"}
+{"text": "update system and omarchy real quick", "label": "omarchy_update"}
+{"text": "gideon make window floating thanks", "label": "window_floating_toggle"}
+{"text": "can you make it louder", "label": "audio_volume_up"}
+{"text": "go to prior workspace now", "label": "workspace_prev"}
+{"text": "quick switch background image", "label": "omarchy_wallpaper_next"}
+{"text": "could you open google chrome", "label": "launch_browser"}
+{"text": "ok gideon sound level 60", "label": "audio_volume_set"}
+{"text": "change model engine real quick", "label": "engine_switch"}
+{"text": "could you open brave browser", "label": "launch_brave"}
+{"text": "hey gideon change model engine", "label": "engine_switch"}
+{"text": "hey run doctor on study system real quick", "label": "study_doctor"}
+{"text": "hey list omarchy themes now", "label": "omarchy_theme_list"}
+{"text": "i want you to play media now", "label": "media_play"}
+{"text": "ok gideon unmute audio", "label": "audio_unmute"}
+{"text": "change theme to Aether", "label": "omarchy_theme_set"}
+{"text": "please launch the spotify app", "label": "launch_spotify"}
+{"text": "quick screen brightness 60%", "label": "brightness_set"}
+{"text": "yo gideon start kitty terminal please", "label": "launch_terminal"}
+{"text": "quick turn sound back on", "label": "audio_unmute"}
+{"text": "gideon please show system stats", "label": "system_status"}
+{"text": "uh snip region on screen now", "label": "omarchy_screenshot"}
+{"text": "real quick pause media", "label": "media_pause"}
+{"text": "hey switch to next theme", "label": "omarchy_theme_next"}
+{"text": "i want you to speaker output", "label": "audio_output_speakers"}
+{"text": "switch audio to speakers now", "label": "audio_output_speakers"}
+{"text": "please open obsidian notes for me", "label": "launch_obsidian"}
+{"text": "can you click the login button on the webpage please", "label": "browser_use_passthrough"}
+{"text": "i want you to change model engine", "label": "engine_switch"}
+{"text": "quick what are my hyprland keybindings", "label": "omarchy_keybindings"}
+{"text": "ok gideon start spotify app please", "label": "launch_spotify"}
+{"text": "just lock computer", "label": "system_lock"}
+{"text": "yo gideon halt playback thanks", "label": "media_stop"}
+{"text": "yo gideon switch to dark theme for me", "label": "omarchy_theme_dark"}
+{"text": "please switch mic mute state thanks", "label": "audio_mic_mute_toggle"}
+{"text": "gideon cycle to next omarchy theme now", "label": "omarchy_theme_next"}
+{"text": "ok gideon workspace 6", "label": "workspace_switch"}
+{"text": "quick focus window up", "label": "window_focus_up"}
+{"text": "please open visual studio code real quick", "label": "launch_code"}
+{"text": "start study sprint for mat_01", "label": "study_sprint_start"}
+{"text": "unmute audio", "label": "audio_unmute"}
+{"text": "gideon forward track", "label": "media_next"}
+{"text": "ok gideon run study doctor please", "label": "study_doctor"}
+{"text": "can you unmute output", "label": "audio_unmute"}
+{"text": "can you set brightness to 80%", "label": "brightness_set"}
+{"text": "can you stop playback", "label": "media_stop"}
+{"text": "can you turn off computer for me", "label": "system_shutdown"}
+{"text": "real quick mic unmute", "label": "audio_mic_unmute"}
+{"text": "hey gideon brighten screen", "label": "brightness_up"}
+{"text": "apply Aether theme", "label": "omarchy_theme_set"}
+{"text": "power off machine please", "label": "system_shutdown"}
+{"text": "please set light theme in omarchy", "label": "omarchy_theme_light"}
+{"text": "turn volume to 40", "label": "audio_volume_set"}
+{"text": "lower brightness by 15% for me", "label": "brightness_down"}
+{"text": "gideon continue playing the song now", "label": "media_play"}
+{"text": "i want you to switch to light theme", "label": "omarchy_theme_light"}
+{"text": "could you open file explorer", "label": "launch_file_manager"}
+{"text": "hey gideon brightness 85 percent", "label": "brightness_set"}
+{"text": "yo gideon quick memo: check PipeWire audio configuration for latency", "label": "flash_note_add"}
+{"text": "please lock computer real quick", "label": "system_lock"}
+{"text": "can you toggle microphone mute thanks", "label": "audio_mic_mute_toggle"}
+{"text": "gideon please search web for best hyprland plugins 2026", "label": "web_search"}
+{"text": "ok gideon go back a song for me", "label": "media_previous"}
+{"text": "could you move focus down for me", "label": "window_focus_down"}
+{"text": "search google for today's breaking news", "label": "web_search"}
+{"text": "ok gideon start vscode real quick", "label": "launch_code"}
+{"text": "uh stop music for me", "label": "media_stop"}
+{"text": "display theme list for me", "label": "omarchy_theme_list"}
+{"text": "could you move focus left", "label": "window_focus_left"}
+{"text": "please close current app window", "label": "window_close"}
+{"text": "quick skip track please", "label": "media_next"}
+{"text": "can you headphones output please", "label": "audio_output_headphones"}
+{"text": "could you toggle window float please", "label": "window_floating_toggle"}
+{"text": "screenshot area", "label": "omarchy_screenshot"}
+{"text": "explain electromagnetic induction intuitively real quick", "label": "conversation"}
+{"text": "quick check retention queue", "label": "study_queue_view"}
+{"text": "quick mute output", "label": "audio_mute"}
+{"text": "just pause music", "label": "media_pause"}
+{"text": "ok gideon automate workspace switching using a bash daemon", "label": "hard_goal"}
+{"text": "quick run system update", "label": "omarchy_update"}
+{"text": "uh kill music playback", "label": "media_stop"}
+{"text": "gideon please open spotify client now", "label": "launch_spotify"}
+{"text": "could you disable mic input thanks", "label": "audio_mic_mute"}
+{"text": "hey kill music playback", "label": "media_stop"}
+{"text": "please toggle play pause for me", "label": "media_play_pause"}
+{"text": "hey gideon view study status", "label": "study_status_view"}
+{"text": "quick implement a quicksort algorithm in c++ now", "label": "hard_goal"}
+{"text": "just mute mic", "label": "audio_mic_mute"}
+{"text": "uh shut off audio", "label": "audio_mute"}
+{"text": "can you change theme to kanagawa for me", "label": "omarchy_theme_set"}
+{"text": "volume 40 percent", "label": "audio_volume_set"}
+{"text": "could you launch visual studio code please", "label": "launch_code"}
+{"text": "ok gideon search online for iat 2026 syllabus updates real quick", "label": "web_search"}
+{"text": "switch sound to headset", "label": "audio_output_headphones"}
+{"text": "real quick switch to agy thanks", "label": "engine_switch"}
+{"text": "can you view study telemetry please", "label": "study_status_view"}
+{"text": "increase brightness by 10%", "label": "brightness_up"}
+{"text": "volume to 5%", "label": "audio_volume_set"}
+{"text": "yo gideon check battery and cpu status thanks", "label": "system_status"}
+{"text": "i want you to toggle fullscreen thanks", "label": "window_fullscreen_toggle"}
+{"text": "real quick open brave browser for me", "label": "launch_brave"}
+{"text": "start google chrome", "label": "launch_browser"}
+{"text": "yo gideon start vscode please", "label": "launch_code"}
+{"text": "capture screen region for me", "label": "omarchy_screenshot"}
+{"text": "could you reboot system for me", "label": "system_reboot"}
+{"text": "i want you to move focus left", "label": "window_focus_left"}
+{"text": "could you system shutdown", "label": "system_shutdown"}
+{"text": "could you what reviews are due today", "label": "study_queue_view"}
+{"text": "i want you to validate ledger integrity thanks", "label": "study_doctor"}
+{"text": "quick set dark theme in omarchy", "label": "omarchy_theme_dark"}
+{"text": "hey next workspace please", "label": "workspace_next"}
+{"text": "real quick focus upper window real quick", "label": "window_focus_up"}
+{"text": "real quick make it louder", "label": "audio_volume_up"}
+{"text": "use headphones now", "label": "audio_output_headphones"}
+{"text": "uh mute microphone", "label": "audio_mic_mute"}
+{"text": "could you run doctor on study system", "label": "study_doctor"}
+{"text": "quick mic unmute", "label": "audio_mic_unmute"}
+{"text": "please take full screenshot and save", "label": "omarchy_screenshot_full"}
+{"text": "next desktop wallpaper please", "label": "omarchy_wallpaper_next"}
+{"text": "please stop playing audio", "label": "media_stop"}
+{"text": "gideon go to next workspace", "label": "workspace_next"}
+{"text": "pause music", "label": "media_pause"}
+{"text": "hey apply light theme thanks", "label": "omarchy_theme_light"}
+{"text": "could you open study workspace for che_01", "label": "study_sprint_start"}
+{"text": "launch obsidian for me", "label": "launch_obsidian"}
+{"text": "switch to top window", "label": "window_focus_up"}
+{"text": "can you exit desktop session", "label": "system_logout"}
+{"text": "hey gideon set output to headphones", "label": "audio_output_headphones"}
+{"text": "quick memo: IAT registration deadline is next Monday for me", "label": "flash_note_add"}
+{"text": "toggle media playback thanks", "label": "media_play_pause"}
+{"text": "just show black book traps for che_02 for me", "label": "study_traps_view"}
+{"text": "change theme to catppuccin", "label": "omarchy_theme_set"}
+{"text": "i want you to shut off audio", "label": "audio_mute"}
+{"text": "gideon please focus right window for me", "label": "window_focus_right"}
+{"text": "gideon what reviews are due today thanks", "label": "study_queue_view"}
+{"text": "could you engine agy", "label": "engine_switch"}
+{"text": "just unmute sound", "label": "audio_unmute"}
+{"text": "hey gideon search the web for latest space news thanks", "label": "web_search"}
+{"text": "play next track please", "label": "media_next"}
+{"text": "gideon kill music playback now", "label": "media_stop"}
+{"text": "i want you to system reboot now", "label": "system_reboot"}
+{"text": "what is the derivative of sin(x) squared now", "label": "conversation"}
+{"text": "uh logout of desktop for me", "label": "system_logout"}
+{"text": "gideon toggle full screen please", "label": "window_fullscreen_toggle"}
+{"text": "gideon unmute mic thanks", "label": "audio_mic_unmute"}
+{"text": "stop playback now", "label": "media_stop"}
+{"text": "gideon mute mic", "label": "audio_mic_mute"}
+{"text": "please raise display brightness", "label": "brightness_up"}
+{"text": "gideon verify study ledgers", "label": "study_doctor"}
+{"text": "fullscreen active window", "label": "window_fullscreen_toggle"}
+{"text": "yo gideon take screenshot now", "label": "omarchy_screenshot"}
+{"text": "hey switch to preceding workspace thanks", "label": "workspace_prev"}
+{"text": "gideon advance to next workspace for me", "label": "workspace_next"}
+{"text": "quick make it quieter", "label": "audio_volume_down"}
+{"text": "just open brave", "label": "launch_brave"}
+{"text": "ok gideon next theme now", "label": "omarchy_theme_next"}
+{"text": "just toggle mic mute now", "label": "audio_mic_mute_toggle"}
+{"text": "gideon enable dark mode", "label": "omarchy_theme_dark"}
+{"text": "i want you to run doctor on study system now", "label": "study_doctor"}
+{"text": "turn it up real quick", "label": "audio_volume_up"}
+{"text": "please open visual studio code for me", "label": "launch_code"}
+{"text": "ok gideon power down workstation", "label": "system_shutdown"}
+{"text": "toggle mic real quick", "label": "audio_mic_mute_toggle"}
+{"text": "could you list omarchy themes for me", "label": "omarchy_theme_list"}
+{"text": "next track please thanks", "label": "media_next"}
+{"text": "switch audio mute for me", "label": "audio_mute_toggle"}
+{"text": "ok gideon mute output", "label": "audio_mute"}
+{"text": "screenshot entire monitor real quick", "label": "omarchy_screenshot_full"}
+{"text": "quick increase volume", "label": "audio_volume_up"}
+{"text": "hey gideon open spotify client now", "label": "launch_spotify"}
+{"text": "uh switch mic mute state", "label": "audio_mic_mute_toggle"}
+{"text": "can you start spotify app real quick", "label": "launch_spotify"}
+{"text": "pause spotify real quick", "label": "media_pause"}
+{"text": "just show study progress", "label": "study_status_view"}
+{"text": "can you next desktop wallpaper real quick", "label": "omarchy_wallpaper_next"}
+{"text": "show today due study cards now", "label": "study_queue_view"}
+{"text": "just launch browser now", "label": "launch_browser"}
+{"text": "just take a snip", "label": "omarchy_screenshot"}
+{"text": "real quick screenshot area", "label": "omarchy_screenshot"}
+{"text": "uh update omarchy please", "label": "omarchy_update"}
+{"text": "next theme for me", "label": "omarchy_theme_next"}
+{"text": "who are you please", "label": "conversation"}
+{"text": "quick change wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "start study sprint for phy_14", "label": "study_sprint_start"}
+{"text": "just take full screenshot and save please", "label": "omarchy_screenshot_full"}
+{"text": "hey turn it down", "label": "audio_volume_down"}
+{"text": "gideon please restart track real quick", "label": "media_previous"}
+{"text": "launch browser", "label": "launch_browser"}
+{"text": "just launch chrome please", "label": "launch_browser"}
+{"text": "i want you to toggle audio mute", "label": "audio_mute_toggle"}
+{"text": "hey gideon bring volume down", "label": "audio_volume_down"}
+{"text": "i want you to delete all temporary files in the cache directory using python now", "label": "hard_goal"}
+{"text": "bump volume up real quick", "label": "audio_volume_up"}
+{"text": "yo gideon show available themes", "label": "omarchy_theme_list"}
+{"text": "real quick focus bottom window real quick", "label": "window_focus_down"}
+{"text": "sound level 15", "label": "audio_volume_set"}
+{"text": "uh show keyboard shortcuts", "label": "omarchy_keybindings"}
+{"text": "hey gideon turn it down", "label": "audio_volume_down"}
+{"text": "lower the volume thanks", "label": "audio_volume_down"}
+{"text": "ok gideon turn the sound back on please", "label": "audio_unmute"}
+{"text": "please resume music", "label": "media_play"}
+{"text": "real quick advance to next workspace real quick", "label": "workspace_next"}
+{"text": "gideon please launch visual studio code", "label": "launch_code"}
+{"text": "lower brightness by 25%", "label": "brightness_down"}
+{"text": "just launch obsidian", "label": "launch_obsidian"}
+{"text": "implement backpropagation from scratch with numpy real quick", "label": "hard_goal"}
+{"text": "gideon please switch to dark theme please", "label": "omarchy_theme_dark"}
+{"text": "quick check study progress overview", "label": "study_status_view"}
+{"text": "switch mic mute state", "label": "audio_mic_mute_toggle"}
+{"text": "hey gideon lock computer please", "label": "system_lock"}
+{"text": "focus upper window now", "label": "window_focus_up"}
+{"text": "gideon please check retention queue", "label": "study_queue_view"}
+{"text": "gideon please show chapter ranks and mastery please", "label": "study_status_view"}
+{"text": "turn brightness down now", "label": "brightness_down"}
+{"text": "start study sprint for phy_02 for me", "label": "study_sprint_start"}
+{"text": "hey gideon raise brightness", "label": "brightness_up"}
+{"text": "ok gideon set theme to matte black", "label": "omarchy_theme_set"}
+{"text": "just validate ledger integrity", "label": "study_doctor"}
+{"text": "search duckduckgo for python 3.12 release notes real quick", "label": "web_search"}
+{"text": "can you brightness down", "label": "brightness_down"}
+{"text": "can you screenshot entire monitor", "label": "omarchy_screenshot_full"}
+{"text": "switch theme to Solitude", "label": "omarchy_theme_set"}
+{"text": "uh keep playing music", "label": "media_play"}
+{"text": "please view study queue", "label": "study_queue_view"}
+{"text": "just switch to dark theme", "label": "omarchy_theme_dark"}
+{"text": "please hold the music thanks", "label": "media_pause"}
+{"text": "just start brave", "label": "launch_brave"}
+{"text": "i want you to set dark theme in omarchy", "label": "omarchy_theme_dark"}
+{"text": "yo gideon play music", "label": "media_play"}
+{"text": "ok gideon toggle window float", "label": "window_floating_toggle"}
+{"text": "quick brighten screen for me", "label": "brightness_up"}
+{"text": "ok gideon pause the track", "label": "media_pause"}
+{"text": "i want you to power down workstation now", "label": "system_shutdown"}
+{"text": "gideon please explain electromagnetic induction intuitively now", "label": "conversation"}
+{"text": "could you capture screen region", "label": "omarchy_screenshot"}
+{"text": "open study workspace for che_02", "label": "study_sprint_start"}
+{"text": "pause music please", "label": "media_pause"}
+{"text": "open kitty", "label": "launch_terminal"}
+{"text": "hey use opencode engine thanks", "label": "engine_switch"}
+{"text": "real quick update system and omarchy real quick", "label": "omarchy_update"}
+{"text": "show black book traps for Chemical Kinetics", "label": "study_traps_view"}
+{"text": "mute output please", "label": "audio_mute"}
+{"text": "hey what are my hyprland keybindings", "label": "omarchy_keybindings"}
+{"text": "uh close active window", "label": "window_close"}
+{"text": "hey gideon start spotify app for me", "label": "launch_spotify"}
+{"text": "uh open spotify client real quick", "label": "launch_spotify"}
+{"text": "yo gideon previous workspace relative now", "label": "workspace_prev"}
+{"text": "gideon route audio to speakers", "label": "audio_output_speakers"}
+{"text": "yo gideon next desktop wallpaper real quick", "label": "omarchy_wallpaper_next"}
+{"text": "hey switch sound to headset for me", "label": "audio_output_headphones"}
+{"text": "i want you to set brightness to 10%", "label": "brightness_set"}
+{"text": "real quick save a note: matrix multiplication is associative but not commutative", "label": "flash_note_add"}
+{"text": "start vscode now", "label": "launch_code"}
+{"text": "open obsidian now", "label": "launch_obsidian"}
+{"text": "show omarchy keybindings please", "label": "omarchy_keybindings"}
+{"text": "could you launch browser for me", "label": "launch_browser"}
+{"text": "switch to bottom window thanks", "label": "window_focus_down"}
+{"text": "yo gideon raise display brightness thanks", "label": "brightness_up"}
+{"text": "gideon move focus right", "label": "window_focus_right"}
+{"text": "set wallpaper to ~/pictures/wallpapers/forest.jpg", "label": "omarchy_wallpaper_set"}
+{"text": "could you go to prior workspace", "label": "workspace_prev"}
+{"text": "yo gideon capture screen region for me", "label": "omarchy_screenshot"}
+{"text": "gideon toggle music playback for me", "label": "media_play_pause"}
+{"text": "can you switch to agy", "label": "engine_switch"}
+{"text": "close this window please", "label": "window_close"}
+{"text": "real quick open brave please", "label": "launch_brave"}
+{"text": "uh exit desktop session thanks", "label": "system_logout"}
+{"text": "ok gideon open spotify client please", "label": "launch_spotify"}
+{"text": "just unmute microphone real quick", "label": "audio_mic_unmute"}
+{"text": "hey gideon set light theme in omarchy for me", "label": "omarchy_theme_light"}
+{"text": "ok gideon forward track thanks", "label": "media_next"}
+{"text": "yo gideon run system update", "label": "omarchy_update"}
+{"text": "i want you to terminate active window", "label": "window_close"}
+{"text": "can you launch visual studio code thanks", "label": "launch_code"}
+{"text": "uh try next theme", "label": "omarchy_theme_next"}
+{"text": "gideon float active window please", "label": "window_floating_toggle"}
+{"text": "can you autofill my shipping address in the browser form thanks", "label": "browser_use_passthrough"}
+{"text": "just start google chrome", "label": "launch_browser"}
+{"text": "start obsidian vault please", "label": "launch_obsidian"}
+{"text": "restart machine please", "label": "system_reboot"}
+{"text": "yo gideon next desktop wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "ok gideon try next theme", "label": "omarchy_theme_next"}
+{"text": "yo gideon toggle play pause", "label": "media_play_pause"}
+{"text": "gideon please shut this window now", "label": "window_close"}
+{"text": "gideon please last workspace thanks", "label": "workspace_previous"}
+{"text": "ok gideon search the web for latest space news now", "label": "web_search"}
+{"text": "hey gideon switch to bottom window real quick", "label": "window_focus_down"}
+{"text": "hey turn brightness up thanks", "label": "brightness_up"}
+{"text": "set wallpaper to /usr/share/backgrounds/nature.png real quick", "label": "omarchy_wallpaper_set"}
+{"text": "uh switch theme to Rose Pine thanks", "label": "omarchy_theme_set"}
+{"text": "hey gideon toggle floating window for me", "label": "window_floating_toggle"}
+{"text": "ok gideon create a dockerfile and docker-compose for the service", "label": "hard_goal"}
+{"text": "hey system shutdown", "label": "system_shutdown"}
+{"text": "please set output to speakers thanks", "label": "audio_output_speakers"}
+{"text": "could you forward track", "label": "media_next"}
+{"text": "quick continue playing the song", "label": "media_play"}
+{"text": "switch to workspace 8 please", "label": "workspace_switch"}
+{"text": "i want you to focus window right for me", "label": "window_focus_right"}
+{"text": "can you what is the definition of momentum", "label": "conversation"}
+{"text": "move focus down", "label": "window_focus_down"}
+{"text": "hey next workspace", "label": "workspace_next"}
+{"text": "can you toggle microphone mute please", "label": "audio_mic_mute_toggle"}
+{"text": "uh start study sprint for phy_14 real quick", "label": "study_sprint_start"}
+{"text": "start study sprint for Thermodynamics real quick", "label": "study_sprint_start"}
+{"text": "gideon please route audio to headphones thanks", "label": "audio_output_headphones"}
+{"text": "just skip track", "label": "media_next"}
+{"text": "hey gideon decrease volume by 5% real quick", "label": "audio_volume_down"}
+{"text": "uh next desktop wallpaper please", "label": "omarchy_wallpaper_next"}
+{"text": "gideon logout of desktop please", "label": "system_logout"}
+{"text": "uh switch to next theme for me", "label": "omarchy_theme_next"}
+{"text": "just display cpu and memory usage", "label": "system_status"}
+{"text": "engine opencode please", "label": "engine_switch"}
+{"text": "hey gideon silence the speakers", "label": "audio_mute"}
+{"text": "ok gideon launch file manager", "label": "launch_file_manager"}
+{"text": "please shut this window", "label": "window_close"}
+{"text": "quick close this window please", "label": "window_close"}
+{"text": "gideon focus left window for me", "label": "window_focus_left"}
+{"text": "could you run doctor on study system now", "label": "study_doctor"}
+{"text": "could you exit desktop session now", "label": "system_logout"}
+{"text": "gideon set dark theme in omarchy", "label": "omarchy_theme_dark"}
+{"text": "i want you to turn on light mode", "label": "omarchy_theme_light"}
+{"text": "hey gideon volume up 5 percent", "label": "audio_volume_up"}
+{"text": "please start chrome for me", "label": "launch_browser"}
+{"text": "gideon please set output to speakers", "label": "audio_output_speakers"}
+{"text": "i want you to turn off sound", "label": "audio_mute"}
+{"text": "ok gideon next track thanks", "label": "media_next"}
+{"text": "flash note: check PipeWire audio configuration for latency", "label": "flash_note_add"}
+{"text": "gideon enable dark mode now", "label": "omarchy_theme_dark"}
+{"text": "yo gideon check study progress overview", "label": "study_status_view"}
+{"text": "just next workspace for me", "label": "workspace_next"}
+{"text": "gideon please reboot system please", "label": "system_reboot"}
+{"text": "hey gideon set dark theme in omarchy now", "label": "omarchy_theme_dark"}
+{"text": "play pause toggle real quick", "label": "media_play_pause"}
+{"text": "uh open revision queue", "label": "study_queue_view"}
+{"text": "real quick start drill session on che_02", "label": "study_sprint_start"}
+{"text": "uh make window fullscreen", "label": "window_fullscreen_toggle"}
+{"text": "switch to previous workspace thanks", "label": "workspace_previous"}
+{"text": "set volume to 40%", "label": "audio_volume_set"}
+{"text": "please view desktop keybindings real quick", "label": "omarchy_keybindings"}
+{"text": "real quick speaker output now", "label": "audio_output_speakers"}
+{"text": "real quick run omarchy update", "label": "omarchy_update"}
+{"text": "just route audio to speakers", "label": "audio_output_speakers"}
+{"text": "quick last workspace please", "label": "workspace_previous"}
+{"text": "i want you to click the login button on the webpage", "label": "browser_use_passthrough"}
+{"text": "what study sessions are due now", "label": "study_queue_view"}
+{"text": "hey gideon mic unmute please", "label": "audio_mic_unmute"}
+{"text": "ok gideon unmute sound now", "label": "audio_unmute"}
+{"text": "toggle speakers mute for me", "label": "audio_mute_toggle"}
+{"text": "yo gideon stop playing audio now", "label": "media_stop"}
+{"text": "uh pause music for me", "label": "media_pause"}
+{"text": "ok gideon increase brightness", "label": "brightness_up"}
+{"text": "gideon power off machine now", "label": "system_shutdown"}
+{"text": "hey gideon launch visual studio code", "label": "launch_code"}
+{"text": "yo gideon go to prior workspace", "label": "workspace_prev"}
+{"text": "dim display", "label": "brightness_down"}
+{"text": "i want you to play music", "label": "media_play"}
+{"text": "uh take a snip real quick", "label": "omarchy_screenshot"}
+{"text": "real quick last workspace real quick", "label": "workspace_previous"}
+{"text": "gideon switch sound to speakers thanks", "label": "audio_output_speakers"}
+{"text": "hey gideon move focus left", "label": "window_focus_left"}
+{"text": "set display brightness to 30", "label": "brightness_set"}
+{"text": "can you open spotify for me", "label": "launch_spotify"}
+{"text": "yo gideon start study sprint for phy_02", "label": "study_sprint_start"}
+{"text": "real quick toggle mic mute thanks", "label": "audio_mic_mute_toggle"}
+{"text": "shut down computer real quick", "label": "system_shutdown"}
+{"text": "can you move focus up", "label": "window_focus_up"}
+{"text": "could you check system status now", "label": "system_status"}
+{"text": "uh apply background image ~/Pictures/wallpapers/forest.jpg", "label": "omarchy_wallpaper_set"}
+{"text": "headphones output for me", "label": "audio_output_headphones"}
+{"text": "use Lupine theme", "label": "omarchy_theme_set"}
+{"text": "uh prior song", "label": "media_previous"}
+{"text": "quick bring volume down", "label": "audio_volume_down"}
+{"text": "yo gideon brightness up", "label": "brightness_up"}
+{"text": "skip to next track for me", "label": "media_next"}
+{"text": "please headphones output real quick", "label": "audio_output_headphones"}
+{"text": "uh system performance stats thanks", "label": "system_status"}
+{"text": "type my username into the web input field thanks", "label": "browser_use_passthrough"}
+{"text": "please capture full screen thanks", "label": "omarchy_screenshot_full"}
+{"text": "real quick silence the mic", "label": "audio_mic_mute"}
+{"text": "quick browse files", "label": "launch_file_manager"}
+{"text": "quick brightness up thanks", "label": "brightness_up"}
+{"text": "uh enable dark mode please", "label": "omarchy_theme_dark"}
+{"text": "hey gideon switch sound to headset", "label": "audio_output_headphones"}
+{"text": "i want you to open notes app now", "label": "launch_obsidian"}
+{"text": "gideon unmute my mic", "label": "audio_mic_unmute"}
+{"text": "ok gideon dim display", "label": "brightness_down"}
+{"text": "gideon please validate ledger integrity", "label": "study_doctor"}
+{"text": "please unmute output", "label": "audio_unmute"}
+{"text": "hey gideon pause the track", "label": "media_pause"}
+{"text": "restart track please", "label": "media_previous"}
+{"text": "can you use antigravity engine", "label": "engine_switch"}
+{"text": "uh run doctor on study system", "label": "study_doctor"}
+{"text": "uh silence the mic", "label": "audio_mic_mute"}
+{"text": "uh lower brightness", "label": "brightness_down"}
+{"text": "how is system health for me", "label": "system_status"}
+{"text": "real quick maximize window toggle", "label": "window_fullscreen_toggle"}
+{"text": "hey maximize window toggle", "label": "window_fullscreen_toggle"}
+{"text": "please open brave", "label": "launch_brave"}
+{"text": "ok gideon close this window", "label": "window_close"}
+{"text": "hey screenshot entire monitor", "label": "omarchy_screenshot_full"}
+{"text": "can you focus left pane", "label": "window_focus_left"}
+{"text": "take a note: check PipeWire audio configuration for latency now", "label": "flash_note_add"}
+{"text": "move to workspace 3 please", "label": "workspace_switch"}
+{"text": "ok gideon toggle mic mute please", "label": "audio_mic_mute_toggle"}
+{"text": "could you lock session thanks", "label": "system_lock"}
+{"text": "uh skip this song", "label": "media_next"}
+{"text": "can you turn the sound back on", "label": "audio_unmute"}
+{"text": "ok gideon focus left window please", "label": "window_focus_left"}
+{"text": "halt playback please", "label": "media_stop"}
+{"text": "toggle speakers mute thanks", "label": "audio_mute_toggle"}
+{"text": "can you display cpu and memory usage real quick", "label": "system_status"}
+{"text": "prior workspace thanks", "label": "workspace_previous"}
+{"text": "ok gideon launch spotify", "label": "launch_spotify"}
+{"text": "reboot computer real quick", "label": "system_reboot"}
+{"text": "hey how is system health thanks", "label": "system_status"}
+{"text": "yo gideon take full screenshot and save now", "label": "omarchy_screenshot_full"}
+{"text": "quick what themes are installed real quick", "label": "omarchy_theme_list"}
+{"text": "gideon open brave please", "label": "launch_brave"}
+{"text": "gideon please open study workspace for che_02 thanks", "label": "study_sprint_start"}
+{"text": "next desktop wallpaper now", "label": "omarchy_wallpaper_next"}
+{"text": "please capture screenshot to clipboard now", "label": "omarchy_screenshot"}
+{"text": "gideon toggle speakers mute please", "label": "audio_mute_toggle"}
+{"text": "please cycle wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "brightness 30 percent thanks", "label": "brightness_set"}
+{"text": "hey open revision queue please", "label": "study_queue_view"}
+{"text": "gideon start kitty terminal", "label": "launch_terminal"}
+{"text": "yo gideon save full screen capture now", "label": "omarchy_screenshot_full"}
+{"text": "yo gideon set wallpaper to ~/Downloads/cyberpunk.png", "label": "omarchy_wallpaper_set"}
+{"text": "uh pause the track", "label": "media_pause"}
+{"text": "hey halt playback", "label": "media_stop"}
+{"text": "begin recall session for mat_02", "label": "study_sprint_start"}
+{"text": "could you show available themes real quick", "label": "omarchy_theme_list"}
+{"text": "show omarchy keybindings real quick", "label": "omarchy_keybindings"}
+{"text": "uh show revision queue", "label": "study_queue_view"}
+{"text": "gideon please open spotify real quick", "label": "launch_spotify"}
+{"text": "shut off audio real quick", "label": "audio_mute"}
+{"text": "gideon unmute volume", "label": "audio_unmute"}
+{"text": "gideon please open brave browser real quick", "label": "launch_brave"}
+{"text": "could you open code editor", "label": "launch_code"}
+{"text": "hey cycle wallpaper", "label": "omarchy_wallpaper_next"}
+{"text": "uh next workspace now", "label": "workspace_next"}
+{"text": "can you try next theme thanks", "label": "omarchy_theme_next"}
+{"text": "hey switch to top window please", "label": "window_focus_up"}
+{"text": "note down: IAT registration deadline is next Monday real quick", "label": "flash_note_add"}
+{"text": "quick enable light mode now", "label": "omarchy_theme_light"}
+{"text": "gideon please unmute my mic real quick", "label": "audio_mic_unmute"}
+{"text": "uh increase brightness by 15%", "label": "brightness_up"}
+{"text": "yo gideon switch theme to Aether", "label": "omarchy_theme_set"}
+{"text": "please start obsidian vault", "label": "launch_obsidian"}
+{"text": "take me to workspace 5", "label": "workspace_switch"}
+{"text": "skip to next track real quick", "label": "media_next"}
+{"text": "gideon please next track please for me", "label": "media_next"}
+{"text": "i want you to next song", "label": "media_next"}
+{"text": "ok gideon open google chrome please", "label": "launch_browser"}
+{"text": "put the volume at 50%", "label": "audio_volume_set"}
+{"text": "quick switch to light theme now", "label": "omarchy_theme_light"}
+{"text": "hey gideon launch terminal real quick", "label": "launch_terminal"}
+{"text": "brightness down thanks", "label": "brightness_down"}
+{"text": "real quick search duckduckgo for python 3.12 release notes", "label": "web_search"}
+{"text": "yo gideon next track please", "label": "media_next"}
+{"text": "forward track for me", "label": "media_next"}
+{"text": "gideon please toggle microphone mute please", "label": "audio_mic_mute_toggle"}
+{"text": "workspace 1", "label": "workspace_switch"}
+{"text": "hey gideon mute audio", "label": "audio_mute"}
+{"text": "just update system and omarchy", "label": "omarchy_update"}
+{"text": "lower audio level now", "label": "audio_volume_down"}
+{"text": "open files app", "label": "launch_file_manager"}
+{"text": "can you toggle mic", "label": "audio_mic_mute_toggle"}
+{"text": "hey gideon play previous track thanks", "label": "media_previous"}
+{"text": "quick read the text in the active browser tab", "label": "browser_use_passthrough"}
+{"text": "please look up recent nest examination notifications", "label": "web_search"}
+{"text": "start study sprint for chemical kinetics", "label": "study_sprint_start"}
+{"text": "just apply dark theme real quick", "label": "omarchy_theme_dark"}
+{"text": "hey make window fullscreen for me", "label": "window_fullscreen_toggle"}
+{"text": "gideon exit desktop session", "label": "system_logout"}
+{"text": "next workspace now", "label": "workspace_next"}
+{"text": "yo gideon open obsidian for me", "label": "launch_obsidian"}
+{"text": "could you check battery and cpu status thanks", "label": "system_status"}
+{"text": "just pause audio", "label": "media_pause"}
+{"text": "uh resume music", "label": "media_play"}
+{"text": "please screenshot entire monitor", "label": "omarchy_screenshot_full"}
+{"text": "real quick launch visual studio code", "label": "launch_code"}
+{"text": "launch terminal for me", "label": "launch_terminal"}
+{"text": "just view desktop keybindings thanks", "label": "omarchy_keybindings"}
+{"text": "i want you to mic unmute", "label": "audio_mic_unmute"}
+{"text": "set volume to 15", "label": "audio_volume_set"}
+{"text": "hey gideon play pause toggle", "label": "media_play_pause"}
+{"text": "ok gideon open files app thanks", "label": "launch_file_manager"}
+{"text": "please set output to headphones real quick", "label": "audio_output_headphones"}
+{"text": "hey gideon hyprland shortcut lookup please", "label": "omarchy_keybindings"}
+{"text": "real quick autofill my shipping address in the browser form real quick", "label": "browser_use_passthrough"}
+{"text": "open files folder for me", "label": "launch_file_manager"}
+{"text": "gideon please toggle media playback", "label": "media_play_pause"}
+{"text": "move to workspace 7 please", "label": "workspace_switch"}
+{"text": "ok gideon mute volume thanks", "label": "audio_mute"}
+{"text": "could you toggle music playback for me", "label": "media_play_pause"}
+{"text": "could you start kitty terminal real quick", "label": "launch_terminal"}
+{"text": "yo gideon click on the blue submit button on screen", "label": "browser_use_passthrough"}
+{"text": "yo gideon extract traps for chapter che_02", "label": "study_traps_view"}
+{"text": "quick take full screenshot and save", "label": "omarchy_screenshot_full"}
+{"text": "hey launch the spotify app thanks", "label": "launch_spotify"}
+{"text": "yo gideon lock session real quick", "label": "system_lock"}
+{"text": "please go back a song please", "label": "media_previous"}
+{"text": "real quick make it louder now", "label": "audio_volume_up"}
+{"text": "please open file explorer", "label": "launch_file_manager"}
+{"text": "hey gideon turn off computer", "label": "system_shutdown"}
+{"text": "uh switch to bottom window now", "label": "window_focus_down"}
+{"text": "gideon please last workspace now", "label": "workspace_previous"}
+{"text": "omarchy theme set Gruvbox", "label": "omarchy_theme_set"}
+{"text": "just optimize the database query indices for postgres", "label": "hard_goal"}
+{"text": "i want you to system performance stats now", "label": "system_status"}
+{"text": "real quick toggle floating state", "label": "window_floating_toggle"}
+{"text": "switch to right window for me", "label": "window_focus_right"}
+{"text": "yo gideon maximize window toggle real quick", "label": "window_fullscreen_toggle"}
+{"text": "i want you to float active window thanks", "label": "window_floating_toggle"}
+{"text": "yo gideon system shutdown thanks", "label": "system_shutdown"}
+{"text": "focus upper window real quick", "label": "window_focus_up"}
+{"text": "gideon please open obsidian notes for me", "label": "launch_obsidian"}
+{"text": "real quick prior workspace please", "label": "workspace_previous"}
+{"text": "uh switch to workspace 7", "label": "workspace_switch"}
+{"text": "yo gideon set output to speakers real quick", "label": "audio_output_speakers"}
+{"text": "could you route audio to headphones please", "label": "audio_output_headphones"}
+{"text": "enable audio output for me", "label": "audio_unmute"}
+{"text": "could you toggle full screen", "label": "window_fullscreen_toggle"}
+{"text": "uh check retention queue for me", "label": "study_queue_view"}
+{"text": "ok gideon set volume to 0%", "label": "audio_volume_set"}
+{"text": "note down: check PipeWire audio configuration for latency", "label": "flash_note_add"}
+{"text": "could you focus window up", "label": "window_focus_up"}
+{"text": "set wallpaper to ~/Pictures/wallpapers/forest.jpg please", "label": "omarchy_wallpaper_set"}
+{"text": "ok gideon switch mic mute state now", "label": "audio_mic_mute_toggle"}
+{"text": "quick toggle media playback", "label": "media_play_pause"}
+{"text": "uh change wallpaper real quick", "label": "omarchy_wallpaper_next"}
+{"text": "uh unmute output", "label": "audio_unmute"}
+{"text": "open google chrome now", "label": "launch_browser"}
+{"text": "yo gideon look up current weather in tokyo", "label": "web_search"}
+{"text": "increase volume by 20%", "label": "audio_volume_up"}
+{"text": "yo gideon switch to next theme for me", "label": "omarchy_theme_next"}
+{"text": "could you last workspace thanks", "label": "workspace_previous"}
+{"text": "focus window down please", "label": "window_focus_down"}
+{"text": "can you toggle media playback", "label": "media_play_pause"}
+{"text": "yo gideon boost volume", "label": "audio_volume_up"}
+{"text": "boost volume for me", "label": "audio_volume_up"}
+{"text": "can you jump back to last workspace", "label": "workspace_previous"}
+{"text": "could you switch to dark theme", "label": "omarchy_theme_dark"}
+{"text": "just use opencode engine", "label": "engine_switch"}
+{"text": "turn the sound back on for me", "label": "audio_unmute"}
+{"text": "quick view study telemetry", "label": "study_status_view"}
+{"text": "autofill my shipping address in the browser form", "label": "browser_use_passthrough"}
+{"text": "quick scroll down to the comments section on this page for me", "label": "browser_use_passthrough"}
+{"text": "next song please", "label": "media_next"}
+{"text": "hey set dark theme in omarchy for me", "label": "omarchy_theme_dark"}
+{"text": "i want you to open spotify thanks", "label": "launch_spotify"}
+{"text": "please restart track", "label": "media_previous"}
+{"text": "gideon please toggle floating state", "label": "window_floating_toggle"}
+{"text": "just cycle to next omarchy theme", "label": "omarchy_theme_next"}
+{"text": "i want you to volume up", "label": "audio_volume_up"}
+{"text": "can you next wallpaper thanks", "label": "omarchy_wallpaper_next"}
+{"text": "can you set output to speakers", "label": "audio_output_speakers"}
+{"text": "quick implement backpropagation from scratch with numpy", "label": "hard_goal"}
+{"text": "can you toggle speakers mute", "label": "audio_mute_toggle"}
+{"text": "hey gideon launch terminal please", "label": "launch_terminal"}
+{"text": "ok gideon navigate to the settings tab in the web app", "label": "browser_use_passthrough"}
+{"text": "what reviews are due today", "label": "study_queue_view"}
+{"text": "hey gideon switch sound to headset please", "label": "audio_output_headphones"}
+{"text": "hey gideon upgrade system packages thanks", "label": "omarchy_update"}
+{"text": "quick engine opencode now", "label": "engine_switch"}
+{"text": "real quick turn volume to 60", "label": "audio_volume_set"}
+{"text": "uh run doctor on study system please", "label": "study_doctor"}
+{"text": "could you shut down computer real quick", "label": "system_shutdown"}
+{"text": "hey gideon next wallpaper for me", "label": "omarchy_wallpaper_next"}
+{"text": "hey gideon pause music real quick", "label": "media_pause"}
+{"text": "hey gideon lock the workstation now", "label": "system_lock"}
+{"text": "could you web search recent developments in fusion energy", "label": "web_search"}
+{"text": "real quick logout of desktop now", "label": "system_logout"}
+{"text": "jot this down: check pipewire audio configuration for latency for me", "label": "flash_note_add"}
+{"text": "could you try next theme", "label": "omarchy_theme_next"}
+{"text": "hey increase volume", "label": "audio_volume_up"}
+{"text": "hey build an end to end test pipeline in pytest", "label": "hard_goal"}
+{"text": "ok gideon resume audio", "label": "media_play"}
+{"text": "uh read the text in the active browser tab", "label": "browser_use_passthrough"}
+{"text": "uh enable dark mode", "label": "omarchy_theme_dark"}
+{"text": "gideon pause audio please", "label": "media_pause"}
+{"text": "gideon please view desktop keybindings", "label": "omarchy_keybindings"}
+{"text": "hey gideon what is the derivative of sin(x) squared", "label": "conversation"}
+{"text": "turn volume to 10", "label": "audio_volume_set"}
+{"text": "just skip to next track thanks", "label": "media_next"}
+{"text": "just disable mic input please", "label": "audio_mic_mute"}
+{"text": "just switch to left window", "label": "window_focus_left"}
+{"text": "gideon silence the mic for me", "label": "audio_mic_mute"}
+{"text": "gideon next theme", "label": "omarchy_theme_next"}
+{"text": "real quick shut down computer", "label": "system_shutdown"}
+{"text": "gideon please open google chrome", "label": "launch_browser"}
+{"text": "quick go to next workspace real quick", "label": "workspace_next"}
+{"text": "use Miasma theme", "label": "omarchy_theme_set"}
+{"text": "extract traps for chapter Thermodynamics thanks", "label": "study_traps_view"}
+{"text": "please route audio to speakers real quick", "label": "audio_output_speakers"}
+{"text": "hey gideon open command line terminal please", "label": "launch_terminal"}
+{"text": "hey lower brightness by 20%", "label": "brightness_down"}
+{"text": "i want you to cycle to next omarchy theme now", "label": "omarchy_theme_next"}
+{"text": "ok gideon take screenshot for me", "label": "omarchy_screenshot"}
+{"text": "enable dark mode real quick", "label": "omarchy_theme_dark"}
+{"text": "real quick click the login button on the webpage thanks", "label": "browser_use_passthrough"}
+{"text": "gideon please what themes are installed", "label": "omarchy_theme_list"}
+{"text": "quick show study progress", "label": "study_status_view"}
+{"text": "please freeze playback now", "label": "media_pause"}
+{"text": "uh how is my exam prep burndown for me", "label": "study_status_view"}
+{"text": "restore audio for me", "label": "audio_unmute"}
+{"text": "restart track real quick", "label": "media_previous"}
+{"text": "restore audio now", "label": "audio_unmute"}
+{"text": "quick switch to preceding workspace real quick", "label": "workspace_prev"}
+{"text": "uh halt playback", "label": "media_stop"}
+{"text": "uh lock session for me", "label": "system_lock"}
+{"text": "can you route audio to speakers", "label": "audio_output_speakers"}
+{"text": "gideon please view desktop keybindings thanks", "label": "omarchy_keybindings"}
+{"text": "just open study workspace for mat_01", "label": "study_sprint_start"}
+{"text": "switch audio to speakers for me", "label": "audio_output_speakers"}
+{"text": "real quick play pause toggle", "label": "media_play_pause"}
+{"text": "toggle mute please", "label": "audio_mute_toggle"}
+{"text": "could you capture screen region now", "label": "omarchy_screenshot"}
+{"text": "hey switch audio mute for me", "label": "audio_mute_toggle"}
+{"text": "yo gideon toggle floating state now", "label": "window_floating_toggle"}
+{"text": "real quick update system and omarchy please", "label": "omarchy_update"}
+{"text": "uh logout of desktop thanks", "label": "system_logout"}
+{"text": "yo gideon verify study ledgers real quick", "label": "study_doctor"}
+{"text": "please go to workspace 8", "label": "workspace_switch"}
+{"text": "just play pause toggle", "label": "media_play_pause"}
+{"text": "hey gideon change wallpaper to /usr/share/backgrounds/nature.png", "label": "omarchy_wallpaper_set"}
+{"text": "please open brave browser", "label": "launch_brave"}
+{"text": "go back a song for me", "label": "media_previous"}
+{"text": "show study traps for che_01", "label": "study_traps_view"}
+{"text": "just switch to bright theme please", "label": "omarchy_theme_light"}
+{"text": "yo gideon switch background image", "label": "omarchy_wallpaper_next"}
+{"text": "yo gideon lock my desktop real quick", "label": "system_lock"}
+{"text": "hey gideon route audio to headphones thanks", "label": "audio_output_headphones"}
+{"text": "gideon debug this memory leak in the c extension", "label": "hard_goal"}
+{"text": "yo gideon save full screen capture", "label": "omarchy_screenshot_full"}
+{"text": "just move focus left now", "label": "window_focus_left"}
+{"text": "check retention queue thanks", "label": "study_queue_view"}
+{"text": "please use opencode engine", "label": "engine_switch"}
+{"text": "gideon add note: matrix multiplication is associative but not commutative", "label": "flash_note_add"}
+{"text": "uh launch study workspace for phy_01", "label": "study_sprint_start"}
+{"text": "hey gideon toggle window float", "label": "window_floating_toggle"}
+{"text": "hey go back a song for me", "label": "media_previous"}
+{"text": "ok gideon unmute output", "label": "audio_unmute"}
+{"text": "start drill session on phy_01 please", "label": "study_sprint_start"}
+{"text": "can you switch to dark style real quick", "label": "omarchy_theme_dark"}
+{"text": "just try next theme", "label": "omarchy_theme_next"}
+{"text": "hey halt playback real quick", "label": "media_stop"}
+{"text": "quick decrease brightness real quick", "label": "brightness_down"}
+{"text": "real quick close current app window please", "label": "window_close"}
+{"text": "launch terminal real quick", "label": "launch_terminal"}
+{"text": "just switch sound to headset", "label": "audio_output_headphones"}
+{"text": "quick extract traps for chapter Electrostatics", "label": "study_traps_view"}
+{"text": "could you drop volume by 25 percent", "label": "audio_volume_down"}
+{"text": "quick go to prior workspace please", "label": "workspace_prev"}
+{"text": "yo gideon skip this song", "label": "media_next"}
+{"text": "hey gideon shut down computer thanks", "label": "system_shutdown"}
+{"text": "yo gideon go to prior workspace now", "label": "workspace_prev"}
+{"text": "hey capture full screen for me", "label": "omarchy_screenshot_full"}
+{"text": "quick focus right window", "label": "window_focus_right"}
+{"text": "hey gideon switch audio to speakers now", "label": "audio_output_speakers"}
+{"text": "gideon turn on dark mode", "label": "omarchy_theme_dark"}
+{"text": "gideon please go back to previous workspace please", "label": "workspace_previous"}
+{"text": "apply background image ~/Pictures/wallpapers/forest.jpg for me", "label": "omarchy_wallpaper_set"}
+{"text": "hey open spotify client real quick", "label": "launch_spotify"}
+{"text": "just play media", "label": "media_play"}
+{"text": "could you save full screen capture please", "label": "omarchy_screenshot_full"}
+{"text": "gideon please switch mic mute state thanks", "label": "audio_mic_mute_toggle"}
+{"text": "go to workspace 7 for me", "label": "workspace_switch"}
+{"text": "ok gideon mute mic", "label": "audio_mic_mute"}
+{"text": "please open visual studio code thanks", "label": "launch_code"}
+{"text": "i want you to system shutdown for me", "label": "system_shutdown"}
+{"text": "i want you to capture full screen", "label": "omarchy_screenshot_full"}
+{"text": "i want you to focus left pane thanks", "label": "window_focus_left"}
+{"text": "ok gideon mic unmute real quick", "label": "audio_mic_unmute"}
+{"text": "yo gideon toggle audio mute", "label": "audio_mute_toggle"}
+{"text": "capture screen region real quick", "label": "omarchy_screenshot"}
+{"text": "hey view traps for Thermodynamics", "label": "study_traps_view"}
+{"text": "uh show revision queue now", "label": "study_queue_view"}
+{"text": "ok gideon mute sound for me", "label": "audio_mute"}
+{"text": "hey focus upper window real quick", "label": "window_focus_up"}
+{"text": "ok gideon lower brightness thanks", "label": "brightness_down"}
+{"text": "could you check retention queue", "label": "study_queue_view"}
+{"text": "can you open terminal for me", "label": "launch_terminal"}
+{"text": "hey volume down", "label": "audio_volume_down"}
+{"text": "lower brightness by 10% now", "label": "brightness_down"}
+{"text": "gideon please show available themes for me", "label": "omarchy_theme_list"}
+{"text": "decrease volume by 5% thanks", "label": "audio_volume_down"}
+{"text": "yo gideon search web for best hyprland plugins 2026 please", "label": "web_search"}
+{"text": "quick memo: the work function depends on metal surface properties now", "label": "flash_note_add"}
+{"text": "cycle theme please", "label": "omarchy_theme_next"}
+{"text": "please speaker output", "label": "audio_output_speakers"}
+{"text": "please begin recall session for Thermodynamics", "label": "study_sprint_start"}
+{"text": "real quick focus window left now", "label": "window_focus_left"}
+{"text": "i want you to check system status real quick", "label": "system_status"}
+{"text": "omarchy theme set everforest", "label": "omarchy_theme_set"}
+{"text": "could you play pause toggle", "label": "media_play_pause"}
+{"text": "just adjust brightness to 40%", "label": "brightness_set"}
+{"text": "i want you to can you explain why the sky is blue", "label": "conversation"}
+{"text": "hey mute microphone real quick", "label": "audio_mic_mute"}
+{"text": "can you capture screenshot to clipboard real quick", "label": "omarchy_screenshot"}
+{"text": "click the login button on the webpage now", "label": "browser_use_passthrough"}
+{"text": "uh stop playback", "label": "media_stop"}
+{"text": "lower brightness real quick", "label": "brightness_down"}
+{"text": "search the web for latest space news for me", "label": "web_search"}
+{"text": "switch to dark style now", "label": "omarchy_theme_dark"}
+{"text": "gideon please refactor the websocket server to use asyncio streams", "label": "hard_goal"}
+{"text": "stop playback please", "label": "media_stop"}
+{"text": "could you click on the blue submit button on screen", "label": "browser_use_passthrough"}
+{"text": "yo gideon open spotify", "label": "launch_spotify"}
+{"text": "i want you to play pause toggle", "label": "media_play_pause"}
+{"text": "mute mic real quick", "label": "audio_mic_mute"}
+{"text": "please view study telemetry", "label": "study_status_view"}
+{"text": "real quick shut this window", "label": "window_close"}
+{"text": "could you toggle sound mute please", "label": "audio_mute_toggle"}
+{"text": "gideon go back a song now", "label": "media_previous"}
+{"text": "please show study progress for me", "label": "study_status_view"}
+{"text": "can you advance to next workspace for me", "label": "workspace_next"}
+{"text": "quick toggle full screen now", "label": "window_fullscreen_toggle"}
+{"text": "gideon please debug this memory leak in the c extension thanks", "label": "hard_goal"}
+{"text": "i want you to start brave for me", "label": "launch_brave"}
+{"text": "yo gideon create a dockerfile and docker-compose for the service", "label": "hard_goal"}
+{"text": "uh display cpu and memory usage thanks", "label": "system_status"}
+{"text": "extract traps for chapter Electrostatics now", "label": "study_traps_view"}
+{"text": "just look up current weather in tokyo for me", "label": "web_search"}
+{"text": "resume spotify", "label": "media_play"}
+{"text": "gideon please write a python script to monitor system volume", "label": "hard_goal"}
+{"text": "hey close current app window please", "label": "window_close"}
+{"text": "go to workspace 1 now", "label": "workspace_switch"}
+{"text": "make it quieter for me", "label": "audio_volume_down"}
+{"text": "ok gideon next theme", "label": "omarchy_theme_next"}
+{"text": "switch theme to Kanagawa", "label": "omarchy_theme_set"}
+{"text": "quick memo: iat registration deadline is next monday for me", "label": "flash_note_add"}
+{"text": "play music thanks", "label": "media_play"}
+{"text": "real quick screen brightness 80% thanks", "label": "brightness_set"}
+{"text": "just delete all temporary files in the cache directory using python for me", "label": "hard_goal"}
+{"text": "hey search web for best hyprland plugins 2026", "label": "web_search"}
+{"text": "just log me out now", "label": "system_logout"}
+{"text": "ok gideon exit fullscreen real quick", "label": "window_fullscreen_toggle"}
+{"text": "please launch the spotify app for me", "label": "launch_spotify"}
+{"text": "just build an end to end test pipeline in pytest", "label": "hard_goal"}
+{"text": "uh system reboot now", "label": "system_reboot"}
+{"text": "just select the third option in the dropdown on the website", "label": "browser_use_passthrough"}
+{"text": "could you workspace minus one thanks", "label": "workspace_prev"}
+{"text": "can you open spotify client now", "label": "launch_spotify"}
+{"text": "can you screenshot entire monitor real quick", "label": "omarchy_screenshot_full"}
+{"text": "adjust audio volume to 75%", "label": "audio_volume_set"}
+{"text": "gideon please system shutdown please", "label": "system_shutdown"}
+{"text": "begin recall session for thermodynamics", "label": "study_sprint_start"}

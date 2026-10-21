@@ -1,0 +1,281 @@
+{
+  "total": 30,
+  "correct": 25,
+  "accuracy_pct": 83.33,
+  "lat_p50_ms": 882.9,
+  "lat_p95_ms": 885.0,
+  "vram_allocated_mb": 824.4,
+  "vram_reserved_mb": 894.0,
+  "results": [
+    {
+      "q": "uh... could you please turn that down a notch",
+      "expected": "system_action",
+      "predicted": "system_action",
+      "confidence": 1.0,
+      "latency_ms": 877.5,
+      "correct": true,
+      "scenario": "volume"
+    },
+    {
+      "q": "switch back to where my editor was",
+      "expected": "system_action",
+      "predicted": "omarchy",
+      "confidence": 0.9987,
+      "latency_ms": 877.4,
+      "correct": false,
+      "scenario": "workspace"
+    },
+    {
+      "q": "hey gideon, mute my mic real quick",
+      "expected": "system_action",
+      "predicted": "system_action",
+      "confidence": 1.0,
+      "latency_ms": 885.0,
+      "correct": true,
+      "scenario": "muting"
+    },
+    {
+      "q": "close that window please",
+      "expected": "system_action",
+      "predicted": "system_action",
+      "confidence": 1.0,
+      "latency_ms": 883.3,
+      "correct": true,
+      "scenario": "window"
+    },
+    {
+      "q": "skip to the next track",
+      "expected": "system_action",
+      "predicted": "system_action",
+      "confidence": 1.0,
+      "latency_ms": 887.1,
+      "correct": true,
+      "scenario": "media"
+    },
+    {
+      "q": "hey can you pop open my browser",
+      "expected": "app_launch",
+      "predicted": "app_launch",
+      "confidence": 1.0,
+      "latency_ms": 883.4,
+      "correct": true,
+      "scenario": "browser"
+    },
+    {
+      "q": "launch spotify for me please",
+      "expected": "app_launch",
+      "predicted": "app_launch",
+      "confidence": 1.0,
+      "latency_ms": 882.8,
+      "correct": true,
+      "scenario": "music"
+    },
+    {
+      "q": "open up my terminal",
+      "expected": "app_launch",
+      "predicted": "app_launch",
+      "confidence": 1.0,
+      "latency_ms": 882.6,
+      "correct": true,
+      "scenario": "terminal"
+    },
+    {
+      "q": "can you start obsidian?",
+      "expected": "app_launch",
+      "predicted": "app_launch",
+      "confidence": 1.0,
+      "latency_ms": 882.6,
+      "correct": true,
+      "scenario": "notes"
+    },
+    {
+      "q": "open code please",
+      "expected": "app_launch",
+      "predicted": "app_launch",
+      "confidence": 1.0,
+      "latency_ms": 883.8,
+      "correct": true,
+      "scenario": "editor"
+    },
+    {
+      "q": "change my wallpaper to something darker",
+      "expected": "omarchy",
+      "predicted": "omarchy",
+      "confidence": 1.0,
+      "latency_ms": 883.5,
+      "correct": true,
+      "scenario": "wallpaper"
+    },
+    {
+      "q": "switch to the dark theme please",
+      "expected": "omarchy",
+      "predicted": "omarchy",
+      "confidence": 1.0,
+      "latency_ms": 882.5,
+      "correct": true,
+      "scenario": "theme"
+    },
+    {
+      "q": "what's the keybinding to open the terminal again",
+      "expected": "omarchy",
+      "predicted": "omarchy",
+      "confidence": 1.0,
+      "latency_ms": 883.7,
+      "correct": true,
+      "scenario": "keybindings"
+    },
+    {
+      "q": "set a colorful theme, something vibrant",
+      "expected": "omarchy",
+      "predicted": "omarchy",
+      "confidence": 1.0,
+      "latency_ms": 882.6,
+      "correct": true,
+      "scenario": "theme"
+    },
+    {
+      "q": "yo gideon what am I looking at right now",
+      "expected": "desktop_vision",
+      "predicted": "conversation",
+      "confidence": 1.0,
+      "latency_ms": 883.4,
+      "correct": false,
+      "scenario": "screen"
+    },
+    {
+      "q": "can you check what this compilation error on my screen means",
+      "expected": "desktop_vision",
+      "predicted": "hard_goal",
+      "confidence": 1.0,
+      "latency_ms": 882.1,
+      "correct": false,
+      "scenario": "error message"
+    },
+    {
+      "q": "what's showing in the active window?",
+      "expected": "desktop_vision",
+      "predicted": "omarchy",
+      "confidence": 1.0,
+      "latency_ms": 883.6,
+      "correct": false,
+      "scenario": "active window"
+    },
+    {
+      "q": "read that error message on my display",
+      "expected": "desktop_vision",
+      "predicted": "browser_task",
+      "confidence": 1.0,
+      "latency_ms": 881.7,
+      "correct": false,
+      "scenario": "display error"
+    },
+    {
+      "q": "search the web for seattle weather",
+      "expected": "web_search",
+      "predicted": "web_search",
+      "confidence": 1.0,
+      "latency_ms": 883.7,
+      "correct": true,
+      "scenario": "weather"
+    },
+    {
+      "q": "look up the latest news on the ai act",
+      "expected": "web_search",
+      "predicted": "web_search",
+      "confidence": 1.0,
+      "latency_ms": 882.3,
+      "correct": true,
+      "scenario": "news"
+    },
+    {
+      "q": "google best linux distros 2026",
+      "expected": "web_search",
+      "predicted": "web_search",
+      "confidence": 1.0,
+      "latency_ms": 882.5,
+      "correct": true,
+      "scenario": "online search"
+    },
+    {
+      "q": "find me flights to tokyo next month",
+      "expected": "web_search",
+      "predicted": "web_search",
+      "confidence": 1.0,
+      "latency_ms": 883.1,
+      "correct": true,
+      "scenario": "online search"
+    },
+    {
+      "q": "who are you anyway",
+      "expected": "conversation",
+      "predicted": "conversation",
+      "confidence": 1.0,
+      "latency_ms": 882.9,
+      "correct": true,
+      "scenario": "casual talk"
+    },
+    {
+      "q": "can you explain quantum entanglement like I'm five",
+      "expected": "conversation",
+      "predicted": "conversation",
+      "confidence": 1.0,
+      "latency_ms": 882.3,
+      "correct": true,
+      "scenario": "science"
+    },
+    {
+      "q": "what's 17 times 24",
+      "expected": "conversation",
+      "predicted": "conversation",
+      "confidence": 0.1239,
+      "latency_ms": 881.9,
+      "correct": true,
+      "scenario": "math"
+    },
+    {
+      "q": "define serendipity for me",
+      "expected": "conversation",
+      "predicted": "conversation",
+      "confidence": 1.0,
+      "latency_ms": 882.9,
+      "correct": true,
+      "scenario": "definition"
+    },
+    {
+      "q": "refactor this python script to use async",
+      "expected": "hard_goal",
+      "predicted": "hard_goal",
+      "confidence": 1.0,
+      "latency_ms": 882.5,
+      "correct": true,
+      "scenario": "refactoring"
+    },
+    {
+      "q": "write a backup script that rotates my logs",
+      "expected": "hard_goal",
+      "predicted": "hard_goal",
+      "confidence": 1.0,
+      "latency_ms": 883.9,
+      "correct": true,
+      "scenario": "multi-step script"
+    },
+    {
+      "q": "help me debug this react component that keeps crashing",
+      "expected": "hard_goal",
+      "predicted": "hard_goal",
+      "confidence": 1.0,
+      "latency_ms": 882.4,
+      "correct": true,
+      "scenario": "coding task"
+    },
+    {
+      "q": "build me a todo app with a sqlite backend",
+      "expected": "hard_goal",
+      "predicted": "hard_goal",
+      "confidence": 1.0,
+      "latency_ms": 883.1,
+      "correct": true,
+      "scenario": "complex coding task"
+    }
+  ]
+}

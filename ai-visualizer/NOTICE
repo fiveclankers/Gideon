@@ -1,0 +1,25 @@
+# Third-party notice
+
+`ai-visualizer/` is adapted from **ai-visualizer** by **Jared Rhodenizer**
+(https://github.com/jaredrhod/ai-visualizer), which is licensed under the
+GNU Affero General Public License, version 3 or later (AGPL-3.0-or-later).
+
+Copyright in the original work remains with its author.
+
+## Modifications
+
+Modified for Gideon in October 2026. Changes from the upstream project:
+
+- The upstream git metadata and standalone updater scripts (`update.sh`,
+  `update.bat`) were removed; updates ship with the Gideon repository.
+- References to unrelated sibling projects were removed from the server
+  documentation and setup text.
+- The signal-bus producer was bound to Gideon's `SignalBus` and `signals/`
+  directory.
+- File headers were normalised to the project name while this notice records
+  the original authorship.
+
+The full AGPL-3.0 text is in `LICENSE` in this directory and at the
+repository root. Because this directory is AGPL-3.0-or-later, the combined
+Gideon repository is distributed under the same license; the corresponding
+source is this repository.

@@ -1,0 +1,483 @@
+{
+  "audio_volume_set": {
+    "description": "Set audio volume to a specific percentage (0-100%)",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-volume @DEFAULT_AUDIO_SINK@ {level}%",
+    "risk_tier": "safe",
+    "slots": {
+      "level": "float"
+    }
+  },
+  "audio_volume_up": {
+    "description": "Increase audio volume by a percentage step (default 10%)",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ {step}%+",
+    "risk_tier": "safe",
+    "slots": {
+      "step": "float"
+    }
+  },
+  "audio_volume_down": {
+    "description": "Decrease audio volume by a percentage step (default 10%)",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-volume @DEFAULT_AUDIO_SINK@ {step}%-",
+    "risk_tier": "safe",
+    "slots": {
+      "step": "float"
+    }
+  },
+  "audio_mute": {
+    "description": "Mute system audio output",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-mute @DEFAULT_AUDIO_SINK@ 1",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "audio_unmute": {
+    "description": "Unmute system audio output",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "audio_mute_toggle": {
+    "description": "Toggle system audio output mute state",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "audio_mic_mute": {
+    "description": "Mute microphone input",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 1",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "audio_mic_unmute": {
+    "description": "Unmute microphone input",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 0",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "audio_mic_mute_toggle": {
+    "description": "Toggle microphone input mute state",
+    "source_bucket": "system_action",
+    "command_or_callable": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "audio_output_headphones": {
+    "description": "Switch default audio output sink to headphones",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy audio output switch",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "audio_output_speakers": {
+    "description": "Switch default audio output sink to speakers",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy audio output switch",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "media_play": {
+    "description": "Resume or start media playback",
+    "source_bucket": "system_action",
+    "command_or_callable": "music resume",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "media_pause": {
+    "description": "Pause currently playing media",
+    "source_bucket": "system_action",
+    "command_or_callable": "music pause",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "media_play_pause": {
+    "description": "Toggle media playback between play and pause",
+    "source_bucket": "system_action",
+    "command_or_callable": "music toggle",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "media_next": {
+    "description": "Skip to the next media track",
+    "source_bucket": "system_action",
+    "command_or_callable": "music next",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "media_previous": {
+    "description": "Return to the previous media track",
+    "source_bucket": "system_action",
+    "command_or_callable": "music previous",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "media_stop": {
+    "description": "Stop media playback completely",
+    "source_bucket": "system_action",
+    "command_or_callable": "music stop",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "brightness_up": {
+    "description": "Increase display brightness by step (default 10%)",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy brightness display +{step}%",
+    "risk_tier": "safe",
+    "slots": {
+      "step": "int"
+    }
+  },
+  "brightness_down": {
+    "description": "Decrease display brightness by step (default 10%)",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy brightness display {step}%-",
+    "risk_tier": "safe",
+    "slots": {
+      "step": "int"
+    }
+  },
+  "brightness_set": {
+    "description": "Set display brightness to an absolute level (0-100%)",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy brightness display {level}%",
+    "risk_tier": "safe",
+    "slots": {
+      "level": "int"
+    }
+  },
+  "window_close": {
+    "description": "Close the currently focused window",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch killactive",
+    "risk_tier": "dangerous",
+    "slots": {}
+  },
+  "window_fullscreen_toggle": {
+    "description": "Toggle fullscreen for the active window",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch fullscreen 1",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "window_focus_left": {
+    "description": "Move window focus to the left",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch movefocus l",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "window_focus_right": {
+    "description": "Move window focus to the right",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch movefocus r",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "window_focus_up": {
+    "description": "Move window focus up",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch movefocus u",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "window_focus_down": {
+    "description": "Move window focus down",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch movefocus d",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "window_floating_toggle": {
+    "description": "Toggle floating state of active window",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch togglefloating",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "workspace_switch": {
+    "description": "Switch to a specific workspace by number 1-10",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch workspace {workspace}",
+    "risk_tier": "safe",
+    "slots": {
+      "workspace": "int"
+    }
+  },
+  "workspace_previous": {
+    "description": "Switch to the previously active workspace",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch workspace previous",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "workspace_next": {
+    "description": "Switch to the next workspace relative to current",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch workspace e+1",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "workspace_prev": {
+    "description": "Switch to the previous workspace relative to current",
+    "source_bucket": "system_action",
+    "command_or_callable": "hyprctl dispatch workspace e-1",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "launch_browser": {
+    "description": "Launch web browser (Chrome)",
+    "source_bucket": "app_launch",
+    "command_or_callable": "google-chrome-stable",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "launch_brave": {
+    "description": "Launch Brave web browser",
+    "source_bucket": "app_launch",
+    "command_or_callable": "brave",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "launch_spotify": {
+    "description": "Launch Spotify desktop client",
+    "source_bucket": "app_launch",
+    "command_or_callable": "spotify",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "launch_terminal": {
+    "description": "Launch terminal emulator (Kitty)",
+    "source_bucket": "app_launch",
+    "command_or_callable": "kitty",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "launch_obsidian": {
+    "description": "Launch Obsidian knowledge vault editor",
+    "source_bucket": "app_launch",
+    "command_or_callable": "obsidian",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "launch_code": {
+    "description": "Launch VS Code code editor",
+    "source_bucket": "app_launch",
+    "command_or_callable": "code",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "launch_file_manager": {
+    "description": "Launch file manager (Thunar)",
+    "source_bucket": "app_launch",
+    "command_or_callable": "thunar",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_theme_list": {
+    "description": "List all installed Omarchy themes",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy theme list",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_theme_set": {
+    "description": "Set active Omarchy theme by name",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy theme set \"{theme}\"",
+    "risk_tier": "safe",
+    "slots": {
+      "theme": "str"
+    }
+  },
+  "omarchy_theme_next": {
+    "description": "Cycle to the next available Omarchy theme",
+    "source_bucket": "omarchy",
+    "command_or_callable": "callable:cycle_next_theme",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_theme_dark": {
+    "description": "Switch desktop theme to dark mode (Tokyo Night)",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy theme set \"Tokyo Night\"",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_theme_light": {
+    "description": "Switch desktop theme to light mode (Flexoki Light)",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy theme set \"Flexoki Light\"",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_wallpaper_next": {
+    "description": "Cycle to the next wallpaper in the active theme",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy theme bg next",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_wallpaper_set": {
+    "description": "Set desktop wallpaper to a specific image path",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy theme bg set {path}",
+    "risk_tier": "safe",
+    "slots": {
+      "path": "str"
+    }
+  },
+  "omarchy_keybindings": {
+    "description": "Show Omarchy and Hyprland keybinding lookup menu",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy menu keybindings",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_screenshot": {
+    "description": "Capture an interactive region screenshot to clipboard",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy capture screenshot smart copy",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_screenshot_full": {
+    "description": "Capture full screen screenshot and save to disk",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy capture screenshot fullscreen save",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "omarchy_update": {
+    "description": "Update Omarchy components and system packages",
+    "source_bucket": "omarchy",
+    "command_or_callable": "omarchy update",
+    "risk_tier": "confirm",
+    "slots": {}
+  },
+  "system_status": {
+    "description": "Check CPU, memory, uptime, and system performance metrics",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy system stats",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "system_lock": {
+    "description": "Lock desktop session and blank screen",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy system lock",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "system_logout": {
+    "description": "Log out of current desktop user session",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy system logout",
+    "risk_tier": "confirm",
+    "slots": {}
+  },
+  "system_reboot": {
+    "description": "Reboot computer system",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy system reboot",
+    "risk_tier": "dangerous",
+    "slots": {}
+  },
+  "system_shutdown": {
+    "description": "Shut down computer hardware",
+    "source_bucket": "system_action",
+    "command_or_callable": "omarchy system shutdown",
+    "risk_tier": "dangerous",
+    "slots": {}
+  },
+  "study_queue_view": {
+    "description": "View today due retention queue and upcoming reviews",
+    "source_bucket": "study_retention",
+    "command_or_callable": "python3 /home/cat/study/scripts/study_engine.py context",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "study_status_view": {
+    "description": "View overall study burndown, active chapters, and mastery ranks",
+    "source_bucket": "study_retention",
+    "command_or_callable": "python3 /home/cat/study/scripts/study_engine.py context",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "study_doctor": {
+    "description": "Verify consistency, schemas, and dates across all study ledgers",
+    "source_bucket": "study_retention",
+    "command_or_callable": "python3 /home/cat/study/scripts/study_engine.py doctor",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "study_traps_view": {
+    "description": "Extract and view Black Book traps and misconceptions for a chapter",
+    "source_bucket": "study_retention",
+    "command_or_callable": "python3 /home/cat/study/scripts/study_engine.py traps {chapter}",
+    "risk_tier": "safe",
+    "slots": {
+      "chapter": "str"
+    }
+  },
+  "study_sprint_start": {
+    "description": "Launch study workspace session for a topic or sprint",
+    "source_bucket": "study_retention",
+    "command_or_callable": "bash /home/cat/study/scripts/launch_study_workspace.sh {chapter}",
+    "risk_tier": "safe",
+    "slots": {
+      "chapter": "str"
+    }
+  },
+  "flash_note_add": {
+    "description": "Hands-free capture of quick note/formula/memo into Obsidian vault",
+    "source_bucket": "flash_note",
+    "command_or_callable": "callable:append_flash_note",
+    "risk_tier": "safe",
+    "slots": {
+      "note": "str"
+    }
+  },
+  "engine_switch": {
+    "description": "Switch active LLM runtime engine (opencode, antigravity, lyra)",
+    "source_bucket": "engine_switch",
+    "command_or_callable": "callable:switch_engine",
+    "risk_tier": "safe",
+    "slots": {
+      "engine": "str"
+    }
+  },
+  "conversation": {
+    "description": "Pass-through: open chat, chit-chat, scientific/math questions, theoretical definitions -> main LLM",
+    "source_bucket": "conversation",
+    "command_or_callable": "passthrough:conversation_llm",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "hard_goal": {
+    "description": "Pass-through: complex coding, script writing, architecture, deep refactoring, background tasks -> coding LLM",
+    "source_bucket": "hard_goal",
+    "command_or_callable": "passthrough:coding_llm",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "web_search": {
+    "description": "Pass-through: live information retrieval, current news, sports scores, live stock/crypto prices -> web search",
+    "source_bucket": "web_search",
+    "command_or_callable": "passthrough:web_search",
+    "risk_tier": "safe",
+    "slots": {}
+  },
+  "browser_use_passthrough": {
+    "description": "Pass-through: DOM navigation, clicking webpage buttons, filling web forms, browser workflows -> browser engine",
+    "source_bucket": "browser_recipe",
+    "command_or_callable": "passthrough:browser_use",
+    "risk_tier": "safe",
+    "slots": {}
+  }
+}

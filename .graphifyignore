@@ -1,0 +1,5 @@
+# graphify: decorative / binary assets with no architectural signal.
+# Remove a line to include that asset in a later rebuild.
+icon.png
+ai-visualizer/assets/*.png
+ai-visualizer/assets/*.wav

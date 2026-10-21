@@ -1,0 +1,48 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Backups & patches
+*.bak
+*.pre_patch_bak
+*.patch
+
+# Logs and databases
+*.log
+data/*.log
+
+# Environment & Secrets
+.env
+.env.*
+*.key
+*.pem
+*secret*
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Large Model weights (>100MB exceeds standard GitHub limits)
+models/backup-*/
+models/*.onnx.data
+models/**/*.safetensors
+models/backup-*/
+
+# Local cache
+graphify-out/cache/
+.pytest_cache/
+
+# Runtime signal bus written by the daemon
+signals/.voice_state
+signals/.voice_waveform
+signals/.voice_loading_pid
+signals/.voice_alert
+
+# Editor/tool backups
+*_bak
