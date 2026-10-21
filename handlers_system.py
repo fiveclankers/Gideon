@@ -203,7 +203,33 @@ async def _run_media_command(
     )
 
 
+async def _play_shuffled_library(limit: int = 50) -> HandlerResult:
+    """Start the local library on shuffle, replacing whatever is queued."""
+    code, out, err = await run_cmd_async(
+        [MUSIC_BIN, "play", "--shuffle", "--limit", str(limit)],
+        timeout=8.0,
+    )
+    if code == 0:
+        return HandlerResult(
+            ok=True,
+            message="Playing shuffled library",
+            data={"shuffled": True, "limit": limit},
+        )
+    return HandlerResult(ok=False, error=f"music library play failed: {err or out}")
+
+
 async def handle_media_play(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
+    # The BGE tier labels "play some music" / "play anything" as media_play,
+    # which by itself resumes whatever player is paused. When the utterance
+    # names nothing specific, start the local library on shuffle instead.
+    if raw_text:
+        try:
+            from reflex_router import is_generic_music_request
+
+            if is_generic_music_request(raw_text):
+                return await _play_shuffled_library()
+        except Exception:  # never let the guard break a plain resume
+            logger.debug("generic music guard failed", exc_info=True)
     return await run_media_action("play")
 
 

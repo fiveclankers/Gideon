@@ -54,8 +54,7 @@ class TestReflexParsing(unittest.TestCase):
     def test_all_media_phrases(self):
         expected = {
             "pause": "pause", "pause music": "pause", "pause media": "pause", "pause playback": "pause", "pause spotify": "pause",
-            "resume": "play", "resume music": "play", "resume media": "play", "resume playback": "play", "resume spotify": "play", "play music": "play",
-            "play some music": "play", "play something": "play", "play anything": "play",
+            "resume": "play", "resume music": "play", "resume media": "play", "resume playback": "play", "resume spotify": "play",
             "stop music": "stop", "stop media": "stop", "stop playback": "stop", "stop spotify": "stop",
             "next track": "next", "skip track": "next", "next song": "next", "previous track": "previous", "previous song": "previous",
         }
@@ -64,6 +63,23 @@ class TestReflexParsing(unittest.TestCase):
                 parsed = router.parse_command(phrase)
                 self.assertEqual(parsed["intent"], "media_control")
                 self.assertEqual(parsed["action"], action)
+
+    def test_generic_music_starts_shuffled_library(self):
+        for phrase in (
+            "play music", "play some music", "play something", "play anything",
+            "play whatever", "play me something", "play a random song",
+            "put on some music", "shuffle my music", "play my library",
+            "Can you play some music?", "just play something",
+        ):
+            with self.subTest(phrase=phrase):
+                parsed = router.parse_command(phrase)
+                self.assertEqual(parsed["intent"], "music_play")
+                self.assertEqual(parsed["kind"], "any")
+
+    def test_specific_music_requests_are_not_generic(self):
+        for phrase in ("play some jazz", "play radiohead", "play music by Radiohead", "resume", "play the video"):
+            with self.subTest(phrase=phrase):
+                self.assertFalse(router.is_generic_music_request(phrase))
 
     def test_local_music_play_phrases(self):
         cases = {
@@ -457,6 +473,18 @@ class TestReflexExecution(unittest.IsolatedAsyncioTestCase):
             )
         run.assert_awaited_once_with(
             [router.MUSIC_BIN, "play", "--mood", "chill"],
+            timeout_s=6.0,
+        )
+
+    async def test_generic_music_play_shuffles_library(self):
+        with patch.object(
+            router, "run_fixed", new=AsyncMock(return_value=(0, ""))
+        ) as run:
+            self.assertTrue(
+                await router.try_reflex("play some music", bus=None, tts=None)
+            )
+        run.assert_awaited_once_with(
+            [router.MUSIC_BIN, "play", "--shuffle", "--limit", "50"],
             timeout_s=6.0,
         )
 

@@ -89,7 +89,34 @@ _MUSIC_ARTIST_ALT_RE = re.compile(r"^(?:play|put\s+on)\s+artist\s+(.+)$", re.I)
 _MUSIC_ARTIST_SONG_RE = re.compile(
     r"^(?:play|put\s+on)\s+(?:a\s+song|a\s+track|something)\s+by\s+(.+)$", re.I
 )
-_MUSIC_GENERIC_VALUES = {"music", "something", "anything", "some", "tunes", "songs", "a song", "a track"}
+_MUSIC_GENERIC_VALUES = {
+    "music", "something", "anything", "some", "tunes", "songs", "a song", "a track",
+    "any song", "any track", "random", "random music", "whatever", "stuff",
+}
+
+# "Just play something": a request for *some* music with no artist, genre, mood
+# or playlist named. These start the local library on shuffle rather than
+# resuming whichever player happens to be paused (often a browser tab).
+_MUSIC_ANY_RE = re.compile(
+    r"^(?:(?:hey\s+)?(?:gideon|jarvis)\s*[,:]?\s*)?"
+    r"(?:(?:can|could|would|will)\s+you\s+)?"
+    r"(?:please\s+|just\s+)*"
+    r"(?:play|put\s+on|shuffle)\s+"
+    r"(?:me\s+|us\s+)?"
+    r"(?:(?:some|any|a|the|my)\s+)*"
+    r"(?:random\s+)?"
+    r"(?:music|something|anything|whatever|songs?|tracks?|tunes|stuff|library"
+    r"|from\s+(?:my\s+)?library)"
+    r"(?:\s+(?:on\s+shuffle|please|now))?$",
+    re.I,
+)
+
+
+def is_generic_music_request(text: str) -> bool:
+    """True when the utterance asks for music without naming what to play."""
+    if not text:
+        return False
+    return bool(_MUSIC_ANY_RE.fullmatch(re.sub(r"[.!?]+$", "", text).strip()))
 
 # Farewell dismissal ("bye bye" and its polite mutations). A single "bye" is
 # deliberately NOT a dismissal: ASR routinely transcribes "by" as "bye".
@@ -289,6 +316,14 @@ def parse_command(text: str) -> dict[str, Any] | None:
             number_text = str(int(number)) if number.is_integer() else str(number)
             return {"intent": "system_action", "argv": ["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{number_text}%"], "summary": f"volume set to {number_text}%"}
 
+    if is_generic_music_request(music_command):
+        return {
+            "intent": "music_play",
+            "kind": "any",
+            "value": "",
+            "summary": "play shuffled library",
+        }
+
     for regex in (_MUSIC_PLAYLIST_RE, _MUSIC_PLAYLIST_ALT_RE):
         match = regex.fullmatch(music_command)
         if match:
@@ -335,7 +370,12 @@ def parse_command(text: str) -> dict[str, Any] | None:
                 "summary": f"play genre {_MUSIC_GENRE_ALIASES[music_value]}",
             }
         if music_value in _MUSIC_GENERIC_VALUES:
-            return {"intent": "media_control", "action": "play", "summary": "media play"}
+            return {
+                "intent": "music_play",
+                "kind": "any",
+                "value": "",
+                "summary": "play shuffled library",
+            }
         # Anything else is a local-library search. This keeps "play some
         # Radiohead" out of the BGE media_play path, which resumes whatever else
         # is already playing (e.g. YouTube).
@@ -350,8 +390,7 @@ def parse_command(text: str) -> dict[str, Any] | None:
 
     media = {
         "pause": "pause", "pause music": "pause", "pause media": "pause", "pause playback": "pause", "pause spotify": "pause",
-        "resume": "play", "resume music": "play", "resume media": "play", "resume playback": "play", "resume spotify": "play", "play music": "play",
-        "play some music": "play", "play something": "play", "play anything": "play",
+        "resume": "play", "resume music": "play", "resume media": "play", "resume playback": "play", "resume spotify": "play",
         "stop music": "stop", "stop media": "stop", "stop playback": "stop", "stop spotify": "stop",
         "next track": "next", "skip track": "next", "next song": "next", "previous track": "previous", "previous song": "previous",
     }
@@ -675,8 +714,12 @@ async def try_reflex(
                 return False
             summary = action["summary"]
         elif intent == "music_play":
+            if action.get("kind") == "any":
+                argv = [MUSIC_BIN, "play", "--shuffle", "--limit", "50"]
+            else:
+                argv = [MUSIC_BIN, "play", f"--{action['kind']}", action["value"]]
             status, output = await run_fixed(
-                [MUSIC_BIN, "play", f"--{action['kind']}", action["value"]],
+                argv,
                 timeout_s=6.0,
             )
             if status != 0:
