@@ -91,6 +91,12 @@ def _load_gideon_env() -> None:
 
 _load_gideon_env()
 FISH_API_KEY = os.environ.get("FISH_API_KEY", "")
+if not FISH_API_KEY:
+    logger.error(
+        "FISH_API_KEY is not set: every Fish Audio synthesis will fail and Gideon "
+        "will answer in text without speaking. Add FISH_API_KEY=... to "
+        "~/.config/gideon/gideon.env and restart the daemon."
+    )
 FISH_REF_ID = "98655a12fa944e26b274c535e5e03842"
 FISH_MODEL = "s2.1-pro-free"
 HTTP_PORT = 8790
@@ -291,6 +297,9 @@ class TTSPlayer:
 
     async def synthesize(self, text: str) -> Optional[bytes]:
         import httpx
+        if not FISH_API_KEY:
+            logger.error("Fish TTS skipped: FISH_API_KEY is empty (set it in ~/.config/gideon/gideon.env).")
+            return None
         payload = {
             "text": text,
             "reference_id": FISH_REF_ID,
