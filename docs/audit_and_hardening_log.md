@@ -71,3 +71,28 @@ Whisper uses an encoder-decoder Transformer architecture:
    - All JARVIS services (`jarvis.service`, `jarvis-ui.service`, `jarvis-browser.service`) are stopped and disabled.
 3. **IPC Socket:**
    - `/tmp/gideon-ui.sock` actively connects `quickshell` and `gideon.py` with bidirectional event synchronization.
+
+---
+
+# GIDEON Engineering Audit — 2026-10-25 Session
+**Date:** 2026-10-25
+**Scope:** Rebuilding `~/jarvis/.venv` after storage purge, removing the dead Hermes engine half-implementation, visualizer security hardening, engine-parity bug fixes, and GitHub-readiness cleanup. Commit `b229d37`, pushed to `github.com/fiveclankers/Gideon` (main).
+
+## 1. Executive Summary
+
+1. **Venv rebuilt from scratch** on uv CPython 3.11.15 (the interpreter the daemon already ran): 149 packages, torch 2.14.1+cu130 with CUDA verified. No manifest existed, so the dependency set was reconstructed from the union of imports across `~/gideon` and `~/jarvis`. Playwright chromium browsers and openWakeWord models (openwakeword 0.6.0 ships without them; `openwakeword.utils.download_models()`) restored. Gotchas recorded: this ZCode session's AppImage `LD_LIBRARY_PATH` breaks the interpreter's path init — test venvs with `env -i` or via systemd, never from inside the agent shell.
+2. **Hermes engine removed.** `hermes_engine.py` was unselectable (`--engine` accepts agy|opencode only), unimportable (`from ui.bus import SignalBus` — module never existed), and protocol-violating (sync `interrupt()`/`close()` under an async `BaseEngine` → `TypeError` on first `await`). Archived with its exclusive config (`brain_models.yaml`, `wake_routes.yaml`, both personas, changelog) at `~/.local/share/gideon-attic/`.
+3. **Security: Host-header validation on the visualizer** (`127.0.0.1:8790`). The POST endpoints drive reflexes that execute local commands, and the wildcard CORS policy answered cross-origin preflights — any website could have driven GIDEON. GET/POST/OPTIONS now 403 unless Host is loopback. Verified: legit Host 200, forged Host 403 (GET and POST).
+4. **Engine parity fixes:** terminal `engine <name>` switch now transfers `wake_listener` and updates `bus.engine_name`; `OpenCodeEngine.interrupt()` now silences TTS, cancels its watchdog and resets turn state (was: API ping only); `_finish_turn` re-arms the hot-mic window like agy.
+5. **Smaller fixes:** browser launch falls back chrome→brave→firefox; dispatcher model paths repo-relative (were absolute `/home/cat/...`); `parse_number` treats "hundred" as a multiplier ("one hundred"=100, was 101 — note: `reflex_router._parse_number` intentionally left untouched per owner instruction); `MockTTSPlayer` in tests gained `interrupt()`.
+6. **Untouched by design:** all tuned regexes, `HOT_MIC_WINDOW_S`/`MAX_UTTERANCE_S`, wake threshold 0.20, mic_gain, sentence-splitting, risk thresholds.
+
+## 2. Repo Hygiene (commit b229d37, 51 files, −8188 lines)
+
+- `graphify-out/` untracked (35 generated files) and gitignored; kept on disk so the `graphify query` Tier-0 reflex still works. `codemap.md` outputs ignored.
+- Removed `gideon.py.pre_patch_bak`, `shell.qml.bak`, stray logs, `__pycache__`.
+- Secrets swept (working tree + full git history): clean. `FISH_API_KEY` stays in `~/.config/gideon/gideon.env`.
+
+## 3. Verification
+
+`pytest tests/` under the rebuilt venv: **141 passed, 230 subtests**. Daemon restarted and live-verified: BGE classifier pre-warmed, Whisper turbo on CUDA, `openWakeWord loaded models: ['hey_jarvis_v0.1']`, agy engine connected, HTTP Host gate active.
