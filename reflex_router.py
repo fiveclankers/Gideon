@@ -35,8 +35,10 @@ _MUSIC_GENRE_ALIASES = {
 }
 
 # Coding/debugging language wins even when a command phrase appears later.
+# "open code" is exempt: it is the Antigravity/OpenCode engine name, and a bare
+# "open code" must reach the engine router instead of being mistaken for coding.
 _UNSAFE_CONTEXT = re.compile(
-    r"\b(?:fix|bug|script|code|why|how|explain)\b|\bwrite\s+a\b|\bwhat\s+is\b",
+    r"\b(?:fix|bug|script|why|how|explain)\b|\bwrite\s+a\b|\bwhat\s+is\b|(?<!\bopen[\s-])\bcode\b",
     re.IGNORECASE,
 )
 _PERCENT = r"([0-9]+(?:\.[0-9]+)?|[a-zA-Z\s-]+?)\s*(?:%|\bpercent\b)?"
@@ -59,6 +61,43 @@ _VOLUME_DOWN_RE = re.compile(
 _NOTE_RE = re.compile(
     r"^(?:note\s+down|note\s+this\s+down|flash\s+note|take\s+a\s+note|quick\s+memo|add\s+note|jot\s+this\s+down)\s*:\s*(.+?)\s*$",
     re.I | re.S,
+)
+# Spoken "switch engine" grammar for the deterministic Tier-0 router. The
+# pattern is fullmatched against the normalized lowercase utterance: an
+# optional politeness wrapper, a verb, an optional pronoun ("switch me to ..."),
+# an optional leading role noun ("change MY ENGINE to opencode"), an optional
+# preposition, the target, an optional trailing role noun ("switch to X
+# ENGINE"), and an optional persistence tail ("... from now on", "... as the
+# default"). Both noun-around-target orderings are accepted, the preposition is
+# optional everywhere ("use X" == "use the X engine"), and the tail only fires
+# on explicit persistence requests so generic "make ..." utterances without a
+# target can never match.
+_ENGINE_VERB_RE = (
+    r"switch(?:ing)?|change(?:ing)?|swap(?:ping)?|shift(?:ing)?|move(?:ing)?|transfer(?:ring)?|"
+    r"flip(?:ping)?|toggle(?:ing)?|set(?:t?ing)?|rout(?:e|ing)|redirect|migrat(?:e|ing)|hop|jump|"
+    r"divert|mak(?:e|ing)|us(?:e|ing)|activat(?:e|ing)|enabl(?:e|ing)|engag(?:e|ing)|boot|"
+    r"start\s+using|go\s+with|stick\s+with|keep"
+)
+_ENGINE_ROLE_NOMINAL_RE = (
+    r"(?:(?:the|my|your|this|gideon's|jarvis's|cognitive)\s+)?"
+    r"(?:(?:cognitive\s+)?(?:engine|backend|brain|model|llm|reasoner|runtime|session|assistant)\s+)?"
+)
+# Named groups split the two engine targets so the caller can tell them apart.
+_ENGINE_TARGET_RE = (
+    r"(?:(?P<target>(?:opencode|open\s+code|open-code))|(?P<target_agy>(?:antigravity|anti-gravity|agy)))"
+)
+_ENGINE_SWITCH_RE = re.compile(
+    r"^(?:(?:can\s+you|could\s+you|would\s+you(?:\s+mind)?|please|just)\s+)?"
+    r"(?:" + _ENGINE_VERB_RE + r")"
+    r"(?:\s+me)?"
+    r"\s*" + _ENGINE_ROLE_NOMINAL_RE +
+    r"(?:to\s+|over\s+to\s+|over\s+|onto\s+|toward(?:s)?\s+)?"
+    r"(?:(?:the|my|your|this)\s+)?"
+    r"" + _ENGINE_TARGET_RE +
+    r"(?:\s+(?:the\s+|my\s+|your\s+)?(?:cognitive\s+)?(?:engine|backend|brain|model|llm|reasoner|runtime|session|assistant))?"
+    r"(?:\s+(?:from\s+now\s+on|for\s+good|for\s+the\s+(?:rest|future)|as\s+the\s+default(?:\s+engine)?|please))?"
+    r"\s*$",
+    re.I,
 )
 _WINDOW_CONTROL_MAP = {
     "focus window left": ["hyprctl", "dispatch", "movefocus", "l"],
@@ -434,6 +473,10 @@ def parse_command(text: str) -> dict[str, Any] | None:
     if value in engines:
         name = engines[value]
         return {"intent": "engine_switch", "engine": name, "summary": f"switched to {'OpenCode' if name == 'opencode' else 'Antigravity'}"}
+    engine_match = _ENGINE_SWITCH_RE.fullmatch(value)
+    if engine_match:
+        name = "opencode" if engine_match.group("target") else "agy"
+        return {"intent": "engine_switch", "engine": name, "summary": f"switched to {'OpenCode' if name == 'opencode' else 'Antigravity'}"}
     return None
 
 
@@ -641,8 +684,18 @@ async def try_reflex(
                 if res.ok and intent and intent not in passthroughs and not res.data.get("escalated"):
                     if intent == "engine_switch":
                         target_engine = res.data.get("params", {}).get("engine", "antigravity")
+                        # Tier-1 BGE can surface either alias; the engine switcher
+                        # only accepts {"agy", "opencode"}.
+                        if target_engine in ("antigravity", "anti-gravity"):
+                            target_engine = "agy"
+                        if target_engine not in ("agy", "opencode"):
+                            logger.warning("Tier-1 engine_switch: unknown engine %r; falling through", target_engine)
+                            return False
                         if set_engine is not None:
-                            await _await_if_needed(set_engine(target_engine))
+                            if not await _await_if_needed(set_engine(target_engine)):
+                                # A failed switch must not be acked as handled.
+                                logger.warning("Tier-1 engine switch to %s failed; falling through", target_engine)
+                                return False
                     if tts is not None:
                         play = getattr(tts, "play_sound", None)
                         if play:

@@ -149,6 +149,7 @@ class SignalBus:
         self.waveform_file = self.dir / ".voice_waveform"
         self.current_state = "idle"
         self.current_detail = ""
+        self.engine_name = "agy"
         self.current_samples = [0.0] * 64
         self.current_level = 0.0
         self.current_user = ""
@@ -170,7 +171,7 @@ class SignalBus:
 
         async def _client_connected(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
             self.ui_clients.add(writer)
-            init_msg = (json.dumps({"event": "state", "val": self.current_state, "detail": self.current_detail}) + "\n").encode()
+            init_msg = (json.dumps({"event": "state", "val": self.current_state, "detail": self.current_detail, "engine": self.engine_name}) + "\n").encode()
             try:
                 writer.write(init_msg)
                 await writer.drain()
@@ -238,7 +239,7 @@ class SignalBus:
             except Exception:
                 pass
 
-        self.broadcast_ui({"event": "state", "val": state, "detail": detail})
+        self.broadcast_ui({"event": "state", "val": state, "detail": detail, "engine": self.engine_name})
 
     def broadcast_rms(self, rms: float):
         self.broadcast_ui({"event": "rms", "val": round(float(rms), 3)})
@@ -734,16 +735,16 @@ class AntigravityEngine:
 
 
 class VoiceListener:
-    """High-fidelity microphone listener with CUDA faster-whisper medium.en STT."""
+    """High-fidelity microphone listener with CUDA faster-whisper turbo STT."""
     def __init__(self):
         _preload_cuda_libs()
         import faster_whisper
         self.device = "cuda"
         self.compute_type = "int8"
         try:
-            logger.info("Loading Faster-Whisper (medium.en) on CUDA...")
-            self.model = faster_whisper.WhisperModel("medium.en", device="cuda", compute_type="int8")
-            logger.info("Faster-Whisper CUDA medium.en engine initialized.")
+            logger.info("Loading Faster-Whisper (turbo) on CUDA...")
+            self.model = faster_whisper.WhisperModel("turbo", device="cuda", compute_type="int8")
+            logger.info("Faster-Whisper CUDA turbo engine initialized.")
         except Exception as e:
             logger.warning(f"CUDA STT initialization failed ({e}), falling back to CPU.")
             self.device = "cpu"
@@ -1074,7 +1075,20 @@ class StdinReader:
 def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_listener, get_engine, get_wake_listener, loop: asyncio.AbstractEventLoop, get_tts=None, switch_engine_cb=None):
     """Runs the integrated HTTP server for the GIDEON PRIME visualizer."""
     class VisualizerHandler(BaseHTTPRequestHandler):
+        def _host_allowed(self) -> bool:
+            # The POST endpoints drive reflexes that execute local commands.
+            # A cross-origin page can bypass CORS preflight because this server
+            # answers OPTIONS with Allow-Origin *, so gate on the Host header:
+            # only loopback origins may talk to the daemon.
+            host = (self.headers.get("Host") or "").strip().lower()
+            return host in ("127.0.0.1", "localhost", "[::1]") or host.startswith(
+                ("127.0.0.1:", "localhost:", "[::1]:")
+            )
+
         def do_GET(self):
+            if not self._host_allowed():
+                self.send_error(403)
+                return
             path = self.path.split("?")[0]
             if path == "/state":
                 is_speaking = bus.current_state == "speaking"
@@ -1108,6 +1122,9 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                 self._static(path)
 
         def do_OPTIONS(self):
+            if not self._host_allowed():
+                self.send_error(403)
+                return
             self.send_response(200)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -1115,6 +1132,9 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
             self.end_headers()
 
         def do_POST(self):
+            if not self._host_allowed():
+                self.send_error(403)
+                return
             path = self.path.split("?")[0]
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length) if length > 0 else b"{}"
@@ -1231,7 +1251,6 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", HTTP_PORT), VisualizerHandler)
-    server.allow_reuse_address = True
     logger.info(f"Visualizer HTTP Server listening on http://127.0.0.1:{HTTP_PORT}/faces/board/")
     server.serve_forever()
 
@@ -1272,6 +1291,7 @@ async def main():
     tts.start_worker()
     engine_name = args.engine
     engine = _make_engine(engine_name, bus, tts)
+    bus.engine_name = engine_name
     engine_holder = [engine]
     wake_listener_holder = [None]
     recorder = AudioStreamRecorder(bus)
@@ -1293,6 +1313,7 @@ async def main():
                 new_engine.wake_listener = wake_listener_holder[0]
             engine_holder[0] = new_engine
             engine_name = target
+            bus.engine_name = target
             logger.info(f"[Engine] dynamically switched to {target}")
             return True
         except Exception as e:
@@ -1303,6 +1324,7 @@ async def main():
                 new_engine.wake_listener = wake_listener_holder[0]
             engine_holder[0] = new_engine
             engine_name = "agy"
+            bus.engine_name = "agy"
             return False
 
     def on_wake_speech(pcm_bytes: bytes):
@@ -1413,15 +1435,21 @@ async def main():
                     await _shutdown_engine(engine_holder[0])
                     engine = _make_engine(target, bus, tts)
                     await engine.start()
+                    if wake_listener_holder[0]:
+                        engine.wake_listener = wake_listener_holder[0]
                     engine_holder[0] = engine
                     engine_name = target
+                    bus.engine_name = target
                     print(f"[Engine] switched to {target}\n", flush=True)
                 except Exception as e:
                     logger.error(f"Engine switch to {target} failed ({e}); reverting to agy.")
                     engine = _make_engine("agy", bus, tts)
                     await engine.start()
+                    if wake_listener_holder[0]:
+                        engine.wake_listener = wake_listener_holder[0]
                     engine_holder[0] = engine
                     engine_name = "agy"
+                    bus.engine_name = "agy"
                 continue
 
             if user_in.lower() == "interrupt":

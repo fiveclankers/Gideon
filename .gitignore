@@ -35,8 +35,11 @@ models/**/*.safetensors
 models/backup-*/
 
 # Local cache
-graphify-out/cache/
+graphify-out/
+codemap.md
+**/codemap.md
 .pytest_cache/
+.slim/
 
 # Runtime signal bus written by the daemon
 signals/.voice_state

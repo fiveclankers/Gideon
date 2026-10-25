@@ -55,7 +55,7 @@ The daemon unlinks any existing `/tmp/gideon-ui.sock` before binding a Unix stre
 
 | `event` | Fields | Meaning |
 | --- | --- | --- |
-| `state` | `val`, `detail` | Current daemon state and human-readable detail. |
+| `state` | `val`, `detail`, `engine` | Current daemon state and human-readable detail; `engine` is the active engine id (agy\|opencode), added 2026-10. |
 | `rms` | `val` | Current normalized audio-level value; the daemon publishes it during microphone input and speech playback. |
 | `transcript` | `speaker`, `text` | Transcript text from `user` or `gideon`. |
 | `graph_query_result` | `query`, `nodes`, `status` | Background graph query result; `nodes` contains up to three labels and `status` is `ok` or `empty`. |

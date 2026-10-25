@@ -22,6 +22,7 @@ ShellRoot {
     // ---- Live State ---------------------------------------------------------
     property string orbState: "idle"
     property string stateDetail: ""
+    property string orbEngine: "agy"
     property real   rmsTarget: 0.0
     property real   lastRmsMs: 0
     property double lastMsgMs: 0 // proof-of-life: updated on every socket line
@@ -129,6 +130,12 @@ ShellRoot {
 
     readonly property var activePreset: presets[orbState] ? presets[orbState] : presets.idle
 
+    // OpenCode thinking renders white; all other state colors come from activePreset.
+    readonly property bool whiteThinking: root.orbState === "thinking" && String(root.orbEngine).toLowerCase() === "opencode"
+    readonly property color effC1: root.whiteThinking ? "#ffffff" : root.activePreset.c1
+    readonly property color effC2: root.whiteThinking ? "#e2e8f0" : root.activePreset.c2
+    readonly property color effC3: root.whiteThinking ? "#0f172a" : root.activePreset.c3
+
     readonly property string effectiveStatusLabel: {
         const d = String(stateDetail).trim()
         if (d.length > 0) {
@@ -173,10 +180,11 @@ ShellRoot {
         return presets[s] ? s : "idle"
     }
 
-    function setState(name, detail) {
+    function setState(name, detail, engine) {
         const norm = normalizeState(name)
         orbState = norm
         stateDetail = detail ? String(detail) : ""
+        if (engine) { root.orbEngine = String(engine) }
         if (norm === "idle" || norm === "thinking" || norm === "conversing" || norm === "hotmic" || norm === "toolcall" || norm === "bge_reflex") {
             rmsTarget = 0.0
         }
@@ -187,7 +195,7 @@ ShellRoot {
         let msg
         try { msg = JSON.parse(line.trim()) } catch (e) { return }
         if (msg.event === "state") {
-            setState(msg.val, msg.detail)
+            setState(msg.val, msg.detail, msg.engine)
         } else if (msg.event === "rms") {
             const v = Number(msg.val)
             rmsTarget = isNaN(v) ? 0.0 : Math.max(0.0, Math.min(1.0, v))
@@ -275,9 +283,7 @@ ShellRoot {
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         WlrLayershell.namespace: "gideon-orb"
 
-        mask: Region {
-            item: orbHitbox
-        }
+        mask: Region {} // empty input region = 100% click-through (no mouse blocking)
 
         Item {
             id: container
@@ -332,10 +338,6 @@ ShellRoot {
                     }
                 }
 
-                // Interactive click pop-out / expansion variables
-                property real clickScale: 1.0
-                property real clickOpacity: 1.0
-
                 // Shader uniforms & easing declaratively bound to activePreset
                 property real diam: root.activePreset.diam
                 property real morph: root.activePreset.morph
@@ -343,9 +345,9 @@ ShellRoot {
                 property real hueSpeed: root.activePreset.hueSpeed
                 property real speak: root.activePreset.speak
                 property real hot: root.activePreset.hot
-                property color c1: root.activePreset.c1
-                property color c2: root.activePreset.c2
-                property color c3: root.activePreset.c3
+                property color c1: root.effC1
+                property color c2: root.effC2
+                property color c3: root.effC3
 
                 // Per-frame integrators
                 property real time: 0
@@ -384,52 +386,6 @@ ShellRoot {
                     if (online) appearAnim.restart()
                 }
 
-                // Click tap-to-expand animation
-                SequentialAnimation {
-                    id: tapExpandAnim
-                    running: false
-                    ParallelAnimation {
-                        NumberAnimation {
-                            target: orb
-                            property: "clickScale"
-                            to: 1.45
-                            duration: 180
-                            easing.type: Easing.OutQuad
-                        }
-                        NumberAnimation {
-                            target: orb
-                            property: "clickOpacity"
-                            to: 0.0
-                            duration: 220
-                            easing.type: Easing.InQuad
-                        }
-                    }
-                    ScriptAction {
-                        script: {
-                            Qt.openUrlExternally("http://localhost:8790/faces/board/")
-                        }
-                    }
-                    PauseAnimation { duration: 320 }
-                    ParallelAnimation {
-                        NumberAnimation {
-                            target: orb
-                            property: "clickScale"
-                            from: 0.55
-                            to: 1.0
-                            duration: 500
-                            easing.type: Easing.OutBack
-                            easing.overshoot: 1.2
-                        }
-                        NumberAnimation {
-                            target: orb
-                            property: "clickOpacity"
-                            from: 0.0
-                            to: 1.0
-                            duration: 450
-                            easing.type: Easing.OutQuad
-                        }
-                    }
-                }
 
                 // Frame-rate driven dynamics
                 FrameAnimation {
@@ -462,8 +418,8 @@ ShellRoot {
                     width: parent.width
                     height: parent.height
                     transformOrigin: Item.Center
-                    scale: orb.activeScale * orb.clickScale
-                    opacity: root.isHiding ? 0.0 : (orb.appear * (root.activePreset.ringMode === "none" ? 0.0 : 0.90)) * orb.clickOpacity
+                    scale: orb.activeScale
+                    opacity: root.isHiding ? 0.0 : (orb.appear * (root.activePreset.ringMode === "none" ? 0.0 : 0.90))
                     Behavior on opacity { NumberAnimation { duration: 400 } }
 
                     // Ripple ring for listening state
@@ -580,15 +536,15 @@ ShellRoot {
                     fragmentShader: Qt.resolvedUrl("OrbShader.frag.qsb")
 
                     transformOrigin: Item.Center
-                    scale: (0.55 + 0.45 * orb.appear) * orb.activeScale * orb.clickScale
-                    opacity: Math.min(1.0, orb.appear) * orb.activeOpacity * orb.clickOpacity * (orb.online ? 1.0 : 0.85)
+                    scale: (0.55 + 0.45 * orb.appear) * orb.activeScale
+                    opacity: Math.min(1.0, orb.appear) * orb.activeOpacity * (orb.online ? 1.0 : 0.85)
                     Behavior on opacity { NumberAnimation { duration: 400 } }
                 }
 
                 // Smoked glass status badge at bottom of orb
                 Rectangle {
                     id: stateBadge
-                    readonly property bool showBadge: !root.isHiding && root.effectiveStatusLabel.length > 0 && orb.clickOpacity > 0.5
+                    readonly property bool showBadge: !root.isHiding && root.effectiveStatusLabel.length > 0
                     anchors.bottom: parent.bottom
                     anchors.bottomMargin: 4
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -677,24 +633,6 @@ ShellRoot {
                     }
                 }
 
-                // Interactive Click Area (Masked specifically for tap-to-expand)
-                Item {
-                    id: orbHitbox
-                    anchors.centerIn: parent
-                    width: 120
-                    height: 120
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
-                        onClicked: {
-                            if (!tapExpandAnim.running) {
-                                tapExpandAnim.restart()
-                            }
-                        }
-                    }
-                }
             }
         }
     }

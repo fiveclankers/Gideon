@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import subprocess
 from typing import Any, Dict
 
@@ -296,7 +297,7 @@ async def handle_brightness_set(params: Dict[str, Any], raw_text: str = "") -> H
 
 
 # Helper for Hyprland dispatch (supports both Lua DSL and classic syntax)
-async def _dispatch_hypr(lua_cmd: str, fallback_argv: list[str]) -> Tuple[int, str, str]:
+async def _dispatch_hypr(lua_cmd: str, fallback_argv: list[str]) -> tuple[int, str, str]:
     code, out, err = await run_cmd_async(["hyprctl", "dispatch", lua_cmd])
     if code == 0 and "error:" not in out:
         return code, out, err
@@ -407,7 +408,14 @@ def _spawn_app(bin_name: str, app_label: str) -> HandlerResult:
 
 
 async def handle_launch_browser(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    return _spawn_app("google-chrome-stable", "Google Chrome")
+    for bin_name, label in (
+        ("google-chrome-stable", "Google Chrome"),
+        ("brave", "Brave Browser"),
+        ("firefox", "Firefox"),
+    ):
+        if shutil.which(bin_name):
+            return _spawn_app(bin_name, label)
+    return HandlerResult(ok=False, error="No known browser executable found")
 
 
 async def handle_launch_brave(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:

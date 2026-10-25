@@ -63,7 +63,7 @@ class OpenCodeEngine:
         self.bus = bus
         self.tts = tts
         self.directory = directory or str(Path(__file__).resolve().parent)
-        self.model = model or {"providerID": "opencode", "id": "mimo-v2.6-flash-free"}
+        self.model = model or {"providerID": "ifm", "id": "k2-horizon"}
         self.agent = agent
         self.session_id: Optional[str] = None
         self.is_turn_active = False
@@ -126,7 +126,17 @@ class OpenCodeEngine:
         r.raise_for_status()
 
     async def interrupt(self, hard: bool = False) -> bool:
+        # Mirror AntigravityEngine.interrupt(): silence TTS, cancel the
+        # watchdog, and reset turn state before asking the service to stop.
+        await self.tts.interrupt()
+        self._sentence_buffer = ""
+        self.is_turn_active = False
         self.current_tool = None
+        self.bus.current_tool = None
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
+            self._watchdog_task = None
+        self.bus.set_state("idle")
         if not self._client or not self.session_id:
             return False
         try:
@@ -220,7 +230,14 @@ class OpenCodeEngine:
         if self._watchdog_task:
             self._watchdog_task.cancel()
             self._watchdog_task = None
-        self.bus.set_state("idle")
+        # Same follow-up window as the agy engine: keep listening briefly
+        # without the wake word after a completed turn.
+        wake_listener = getattr(self, "wake_listener", None)
+        if wake_listener:
+            from gideon import HOT_MIC_WINDOW_S
+            wake_listener.arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
+        else:
+            self.bus.set_state("idle")
         logger.info(f"[Turn Complete:{how}] Gideon is idle.\n")
 
     def _handle_event(self, ev_type: str, data: dict):

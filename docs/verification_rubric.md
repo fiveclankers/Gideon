@@ -16,7 +16,7 @@ During the multi-agent optimization session, five operational subagents investig
 
 ### Pillar 1: Arch Linux / Omarchy / Hyprland Compositor Stability
 * **P1.1 (Syntax & Parsing):** Any proposed edit to `~/.config/hypr/` or `~/.config/omarchy/` must undergo dry-run syntax verification before deployment.
-* **P1.2 (Layer-Shell Integrity):** GIDEON's overlay orb runs as a Quickshell layer-shell window (`WlrLayershell.layer: Overlay`, namespace `gideon-orb`). Prohibited: any window rules, opacity overrides, or fullscreen layer modifications that occlude, steal focus from, or break click-through input masking (`Region { item: orbHitbox }`, `keyboardFocus: None`).
+* **P1.2 (Layer-Shell Integrity):** GIDEON's overlay orb runs as a Quickshell layer-shell window (`WlrLayershell.layer: Overlay`, namespace `gideon-orb`). Prohibited: any window rules, opacity overrides, or fullscreen layer modifications that occlude, steal focus from, or break click-through input masking (`mask: Region {}`, `keyboardFocus: None`).
 * **P1.3 (Desktop Entry Indexing):** Any newly registered script or application must follow `~/.gemini/config/AGENTS.md`:
   - Valid `.desktop` entry in `/usr/share/applications/` or `~/.local/share/applications/`.
   - Valid, rendered icon in launchers and docks.

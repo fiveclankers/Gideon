@@ -213,9 +213,9 @@ class GideonDispatcher:
 
     def __init__(
         self,
-        model_path: str = "/home/cat/gideon/models/model_int8.onnx",
-        temperature_path: str = "/home/cat/gideon/models/temperature.json",
-        schema_path: str = "/home/cat/gideon/intents_schema.json",
+        model_path: str = str(Path(__file__).resolve().parent / "models" / "model_int8.onnx"),
+        temperature_path: str = str(Path(__file__).resolve().parent / "models" / "temperature.json"),
+        schema_path: str = str(Path(__file__).resolve().parent / "intents_schema.json"),
     ):
         self.schema = json.loads(Path(schema_path).read_text())
         

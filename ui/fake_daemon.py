@@ -12,9 +12,12 @@ import random
 SOCK = "/tmp/gideon-ui.sock"
 clients: set[asyncio.StreamWriter] = set()
 current_state = "idle"
+FAKE_ENGINE = os.environ.get("GIDEON_FAKE_ENGINE", "agy")
 
 
 def send(obj: dict) -> None:
+    if obj.get("event") == "state" and "engine" not in obj:
+        obj["engine"] = FAKE_ENGINE
     line = (json.dumps(obj) + "\n").encode()
     for w in list(clients):
         try:

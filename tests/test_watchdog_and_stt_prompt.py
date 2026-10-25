@@ -53,6 +53,10 @@ class MockTTSPlayer:
         self.queued_sentences.append(text)
         self._queue.put_nowait(text)
 
+    async def interrupt(self):
+        self._is_speaking = False
+        self.queued_sentences.clear()
+
     async def wait_until_done(self):
         return None
 
@@ -174,7 +178,7 @@ class TestSTTPromptTokenizer(unittest.TestCase):
 
         import faster_whisper
         try:
-            cls.model = faster_whisper.WhisperModel("medium.en", device="cuda", compute_type="int8")
+            cls.model = faster_whisper.WhisperModel("turbo", device="cuda", compute_type="int8")
         except Exception:
             cls.model = faster_whisper.WhisperModel("small.en", device="cpu", compute_type="int8")
         cls.tokenizer = cls.model.hf_tokenizer
@@ -184,7 +188,7 @@ class TestSTTPromptTokenizer(unittest.TestCase):
         encoding = self.tokenizer.encode(OPTIMAL_WHISPER_PROMPT)
         token_count = len(encoding.ids)
         self.assertLess(token_count, 224, f"Prompt token count {token_count} exceeds 224 limit")
-        self.assertEqual(token_count, 74, f"Expected 74 tokens, got {token_count}")
+        self.assertIn(token_count, (74, 78), f"Expected 74 (English) or 78 (Multilingual/Turbo) tokens, got {token_count}")
 
     def test_exact_roundtrip_decoding(self):
         """Verifies no byte fallback or unknown token mangling during tokenization."""

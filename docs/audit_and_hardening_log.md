@@ -63,7 +63,7 @@ Whisper uses an encoder-decoder Transformer architecture:
 
 1. **Wayland Layer-Shell Overlay:**
    - Window: `WlrLayershell.layer: Overlay`, `WlrLayershell.namespace: "gideon-orb"`.
-   - Input: `mask: Region { item: orbHitbox }` captures clicks strictly on the orb; `WlrLayershell.keyboardFocus: WlrKeyboardFocus.None` guarantees zero spacebar/keyboard capture.
+   - Input: `mask: Region {}` leaves the overlay fully click-through (the orb hitbox was removed by user decision); `WlrLayershell.keyboardFocus: WlrKeyboardFocus.None` guarantees zero spacebar/keyboard capture.
 2. **Systemd Supervision:**
    - `gideon-ui.service` is enabled for `graphical-session.target`.
    - `gideon.service` is available in `~/.config/systemd/user/gideon.service`.

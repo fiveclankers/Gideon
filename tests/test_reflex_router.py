@@ -7,6 +7,7 @@ import time
 import unittest
 from datetime import datetime as RealDateTime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import reflex_router as router
@@ -153,6 +154,75 @@ class TestReflexParsing(unittest.TestCase):
         for phrase, engine in expected.items():
             with self.subTest(phrase=phrase):
                 self.assertEqual(router.parse_command(phrase)["engine"], engine)
+
+    def test_engine_switch_combinatorics(self):
+        phrase_to_engine = {
+            # bare verb, preposition optional
+            "switch to opencode": "opencode",
+            "change to opencode": "opencode",
+            "activate opencode": "opencode",
+            "enable the opencode engine": "opencode",
+            "use opencode": "opencode",
+            "use the opencode engine": "opencode",
+            "start using opencode": "opencode",
+            # persistence tails
+            "start using opencode from now on": "opencode",
+            "migrate to opencode as the default engine": "opencode",
+            "make opencode my engine": "opencode",
+            "make opencode the engine": "opencode",
+            "set opencode as the default": "opencode",
+            "change to antigravity from now on": "agy",
+            # preposition variants and pronoun
+            "hop over to opencode": "opencode",
+            "switch me over to open code": "opencode",
+            "switch to open-code": "opencode",
+            "switch me to anti-gravity": "agy",
+            # noun-before-target ordering
+            "change your engine to opencode": "opencode",
+            "move the brain to opencode": "opencode",
+            "switch my cognitive brain to opencode": "opencode",
+            "change engine over to opencode": "opencode",
+            "please use the opencode backend": "opencode",
+            # politeness wrappers
+            "can you switch to opencode": "opencode",
+            "could you switch to antigravity": "agy",
+            "would you mind switching to opencode": "opencode",
+            "please switch to agy": "agy",
+            # antigravity family, trailing role noun
+            "switch to antigravity engine": "agy",
+            "switch to the agy backend": "agy",
+            # trailing "please" (base value doesn't strip it the way music does)
+            "switch opencode please": "opencode",
+        }
+        for phrase, engine in phrase_to_engine.items():
+            with self.subTest(phrase=phrase):
+                expected_summary = "switched to OpenCode" if engine == "opencode" else "switched to Antigravity"
+                self.assertEqual(
+                    router.parse_command(phrase),
+                    {"intent": "engine_switch", "engine": engine, "summary": expected_summary},
+                )
+
+    def test_engine_switch_negative_controls(self):
+        # The music and note chains must win over the engine grammar.
+        self.assertEqual(router.parse_command("play opencode music")["intent"], "music_play")
+        self.assertEqual(router.parse_command("note this down: opencode")["intent"], "flash_note")
+        for phrase in (
+            "open code review of gideon.py",
+            "open the code",
+            "who made opencode",
+            "ok switch engine to opencode",
+            "make me a sandwich",
+            "make opencode default",
+            "set opencode default",
+            "switch the engine",
+            "switch to the opencode runtime soon",
+        ):
+            with self.subTest(phrase=phrase):
+                result = router.parse_command(phrase)
+                self.assertTrue(
+                    result is None or result.get("intent") != "engine_switch",
+                    f"{phrase!r} must not route to engine_switch, got {result!r}",
+                )
 
     def test_flash_note_prefixes(self):
         for prefix in ("note down:", "note this down:", "flash note:", "take a note:", "quick memo:", "add note:", "jot this down:"):
@@ -421,6 +491,45 @@ class TestReflexExecution(unittest.IsolatedAsyncioTestCase):
         tts.play_sound.assert_awaited_once_with("acknowledged.wav")
         tts.speak.assert_awaited_once_with("Switched to OpenCode.")
         bus.set_state.assert_awaited_once_with("idle")
+
+    def _t1_dispatcher(self, engine):
+        res = SimpleNamespace(ok=True, message="Switched engines.", data={"intent": "engine_switch", "params": {"engine": engine}})
+        dispatcher = AsyncMock()
+        dispatcher.dispatch = AsyncMock(return_value=res)
+        return dispatcher
+
+    async def test_tier1_engine_switch_normalizes_anti_gravity_alias(self):
+        dispatcher = self._t1_dispatcher("antigravity")
+        set_engine = AsyncMock(return_value=True)
+        tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+        bus = type("Bus", (), {"set_state": AsyncMock()})()
+        # "soon" keeps this off the Tier-0 grammar so the BGE path runs.
+        with patch.object(router, "get_gideon_dispatcher", return_value=dispatcher):
+            self.assertTrue(await router.try_reflex("switch to antigravity soon", bus=bus, tts=tts, set_engine=set_engine))
+        set_engine.assert_awaited_once_with("agy")
+        tts.play_sound.assert_awaited_once_with("acknowledged.wav")
+
+    async def test_tier1_engine_switch_rejects_unknown_engine(self):
+        dispatcher = self._t1_dispatcher("lyra")
+        set_engine = AsyncMock(return_value=True)
+        tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+        bus = type("Bus", (), {"set_state": AsyncMock()})()
+        with patch.object(router, "get_gideon_dispatcher", return_value=dispatcher):
+            self.assertFalse(await router.try_reflex("switch to lyra", bus=bus, tts=tts, set_engine=set_engine))
+        set_engine.assert_not_awaited()
+        tts.play_sound.assert_not_awaited()
+        tts.speak.assert_not_awaited()
+
+    async def test_tier1_engine_switch_failure_is_not_acked(self):
+        dispatcher = self._t1_dispatcher("opencode")
+        set_engine = AsyncMock(return_value=False)
+        tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+        bus = type("Bus", (), {"set_state": AsyncMock()})()
+        with patch.object(router, "get_gideon_dispatcher", return_value=dispatcher):
+            self.assertFalse(await router.try_reflex("switch from opencode", bus=bus, tts=tts, set_engine=set_engine))
+        set_engine.assert_awaited_once_with("opencode")
+        tts.play_sound.assert_not_awaited()
+        tts.speak.assert_not_awaited()
 
     async def test_command_uses_fixed_runner_and_feedback(self):
         tts = type("TTS", (), {"play_sound": AsyncMock()})()

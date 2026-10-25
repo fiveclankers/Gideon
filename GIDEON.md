@@ -330,10 +330,10 @@ GIDEON features a dedicated, native Wayland layer-shell 3D GPU plasma orb overla
 ### 8.1 Key Features & Architecture
 1. **Visual Theme**: Deep Nordic spruce/pine shadow base (`#0e3d2f`, `#092218`, `#03130d`), vibrant emerald listening pulse (`#10b981`), pale lichen thinking reticle (`#6ee7b7`), and neon mint vocal aurora (`#34d399`).
 2. **Strict Tool-Call Binding**: When an NDJSON `tool_call` occurs, the orb immediately morphs into an **Amber Canopy** palette (`#d97706`, `#15803d`, `#451a03`, accent `#fbbf24`), displaying the active tool name and target (e.g., `run_command: uptime`) without relying on engine polling or process heuristics.
-3. **Tap-to-Expand Browser Visualizer**:
-   - The input mask (`mask: Region { item: orbHitbox }`) captures clicks solely on the orb hitbox, leaving the rest of the desktop 100% click-through.
+3. **Click-Through Desktop Overlay**:
+   - The input mask is empty (`mask: Region {}`), so the orb overlay never captures pointer input and the whole desktop stays 100% click-through.
    - Zero keyboard grabbing: `WlrLayershell.keyboardFocus: WlrKeyboardFocus.None` guarantees no spacebar or desktop hotkey hijacking.
-   - Tapping the orb triggers an outward pop/fade animation (`scale: 1.45`), opens the WebGL Circuit Board in the default browser (`http://localhost:8790/faces/board/`), and smoothly fades the desktop orb back into view.
+   - The WebGL Circuit Board remains available directly at `http://localhost:8790/faces/board/`.
 4. **IPC Bridge**:
    - Unix Domain Socket: `/tmp/gideon-ui.sock`.
    - Streams `state` (with dynamic tool detail), real-time scalar `rms` from microphone and PipeWire audio buffers, and live subtitle transcripts (`speaker: "user" | "gideon"`).
@@ -398,7 +398,7 @@ When extending GIDEON, the following 9 solved failure modes and operational safe
 * **Problem**: Setting opacity to 0 leaves users unaware if the daemon is alive, while leaving a full-screen window intercepts clicks and blurs the entire desktop.
 * **Fix**: 
   - Standby Dock: When `idle`, the orb shrinks to `scale: 0.44`, fades to `opacity: 0.30`, and translates into the top-right corner (`slideX: 68`, `slideY: -10`).
-  - Strict Input Mask: `mask: Region { item: orbHitbox }` captures clicks strictly on the orb; `WlrLayershell.keyboardFocus: WlrKeyboardFocus.None` guarantees zero spacebar/keyboard capture.
+  - Fully Click-Through: `mask: Region {}` leaves the overlay non-interactive; `WlrLayershell.keyboardFocus: WlrKeyboardFocus.None` guarantees zero spacebar/keyboard capture.
 
 ---
 

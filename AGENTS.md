@@ -38,3 +38,14 @@ When asked to send an Instagram DM:
 ## Web Component & Modern SPA Interaction Directives
 - Modern web frameworks (Polymer, React/Lexical, Lit, Angular, Shadow DOM components) often attach listeners to Pointer/Mouse events rather than basic DOM clicks.
 - Never rely on simple synthetic `.click()` or raw text injection on dynamic modern apps (YouTube, Meta/Instagram, GitHub, etc.). Always dispatch the complete pointer/mouse sequence (`pointerdown`, `mousedown`, `pointerup`, `mouseup`, `click`) or use driver-level hardware typing (`browser_type` with key events) to ensure actions penetrate shadow roots and trigger framework state changes.
+
+## Repository Map
+
+A full codemap is available at `codemap.md` in the project root.
+
+Before working on any task, read `codemap.md` to understand:
+- Project architecture and entry points
+- Directory responsibilities and design patterns
+- Data flow and integration points between modules
+
+For deep work on a specific folder, also read that folder's `codemap.md`.

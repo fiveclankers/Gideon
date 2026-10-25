@@ -66,7 +66,11 @@ def parse_number(text: str | None) -> Optional[float]:
     matched = False
     for w in words:
         if w in _NUMBER_WORDS:
-            total += _NUMBER_WORDS[w]
+            if w == "hundred":
+                # Spoken multiplier, not an addend: "one hundred" is 100, not 101.
+                total = max(total, 1.0) * 100
+            else:
+                total += _NUMBER_WORDS[w]
             matched = True
         elif w.isdigit():
             total += float(w)
@@ -330,10 +334,10 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
 
     elif intent_id == "engine_switch":
         lower = text.lower()
-        if "opencode" in lower:
+        if "opencode" in lower or "open code" in lower or "open-code" in lower:
             params["engine"] = "opencode"
-        elif "antigravity" in lower or "agy" in lower:
-            params["engine"] = "antigravity"
+        elif "antigravity" in lower or "anti-gravity" in lower or "agy" in lower:
+            params["engine"] = "agy"
         elif "lyra" in lower:
             params["engine"] = "lyra"
 
