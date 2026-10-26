@@ -5,7 +5,7 @@ import Quickshell.Wayland
 
 // GIDEON Quickshell Orb & Subtitles Overlay
 // Native Wayland layer-shell 3D GPU plasma orb + frosted smoked glass telemetry
-// Theme: Boreal Pine, Bioluminescent Canopy & Claude-style Claude Gerund Telemetry
+// Theme: Boreal Pine, Bioluminescent Canopy & GIDEON cognitive telemetry
 
 ShellRoot {
     id: root
@@ -17,7 +17,7 @@ ShellRoot {
     property int    marginEdge: 16          // clearance below Omarchy top-bar
     property string monitorName: ""         // "" = primary display
     property int    windowWidth: 260
-    property int    windowHeight: 260
+    property int    windowHeight: 380
 
     // ---- Live State ---------------------------------------------------------
     property string orbState: "idle"
@@ -26,8 +26,11 @@ ShellRoot {
     property real   rmsTarget: 0.0
     property real   lastRmsMs: 0
     property double lastMsgMs: 0 // proof-of-life: updated on every socket line
+    property string transcriptSpeaker: ""
+    property string transcriptText: ""
+    readonly property bool transcriptVisible: transcriptText.length > 0
 
-    // Claude Code-style dynamic gerunds for thinking/conversing
+    // Dynamic cognitive verbs for thinking/conversing
     readonly property var gerundList: [
         "Discombobulating",
         "Perambulating",
@@ -61,6 +64,18 @@ ShellRoot {
         repeat: true
         onTriggered: {
             root.gerundIndex = (root.gerundIndex + 1) % root.gerundList.length
+        }
+    }
+
+    // Keep the last subtitle visible briefly after speech, then return to a
+    // quiet desktop presence. This is display-only; no transcript is persisted.
+    Timer {
+        id: transcriptTimer
+        interval: 6500
+        repeat: false
+        onTriggered: {
+            root.transcriptSpeaker = ""
+            root.transcriptText = ""
         }
     }
 
@@ -190,6 +205,14 @@ ShellRoot {
         }
     }
 
+    function setTranscript(speaker, text) {
+        const clean = String(text || "").trim()
+        if (!clean) return
+        root.transcriptSpeaker = String(speaker || "gideon").toLowerCase()
+        root.transcriptText = clean.slice(-320)
+        transcriptTimer.restart()
+    }
+
     function handleLine(line) {
         root.lastMsgMs = Date.now()
         let msg
@@ -200,6 +223,14 @@ ShellRoot {
             const v = Number(msg.val)
             rmsTarget = isNaN(v) ? 0.0 : Math.max(0.0, Math.min(1.0, v))
             lastRmsMs = Date.now()
+        } else if (msg.event === "transcript") {
+            if (!String(msg.text || "").trim()) {
+                transcriptTimer.stop()
+                root.transcriptSpeaker = ""
+                root.transcriptText = ""
+            } else {
+                setTranscript(msg.speaker, msg.text)
+            }
         }
     }
 
@@ -285,13 +316,13 @@ ShellRoot {
 
         mask: Region {} // empty input region = 100% click-through (no mouse blocking)
 
-        Item {
-            id: container
-            anchors.fill: parent
+            Item {
+                id: container
+                anchors.fill: parent
 
-            // -----------------------------------------------------------------
-            // 1. THE 3D ORB CONTAINER
-            // -----------------------------------------------------------------
+                // -----------------------------------------------------------------
+                // 1. THE 3D ORB CONTAINER
+                // -----------------------------------------------------------------
             Item {
                 id: orb
                 anchors.top: parent.top
@@ -634,6 +665,76 @@ ShellRoot {
                 }
 
             }
+
+                // Ephemeral transcript card: the orb remains the primary
+                // presence, while the latest speech is still readable without
+                // opening the browser HUD.
+                Rectangle {
+                    id: transcriptCard
+                    anchors.top: orb.bottom
+                    anchors.topMargin: -2
+                    anchors.right: parent.right
+                    width: 244
+                    height: Math.min(92, 36 + transcriptBody.implicitHeight)
+                    radius: 10
+                    color: Qt.rgba(0.015, 0.025, 0.03, 0.78)
+                    border.width: 1
+                    border.color: root.transcriptSpeaker === "user"
+                                  ? Qt.rgba(0.1, 0.85, 1.0, 0.30)
+                                  : Qt.rgba(0.35, 0.95, 0.65, 0.26)
+                    visible: root.transcriptVisible
+                    opacity: visible ? 1.0 : 0.0
+                    scale: visible ? 1.0 : 0.96
+                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                    Behavior on color { ColorAnimation { duration: 260 } }
+                    Behavior on border.color { ColorAnimation { duration: 260 } }
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 12
+                        anchors.topMargin: 9
+                        anchors.bottomMargin: 9
+                        spacing: 10
+
+                        Rectangle {
+                            width: 3
+                            height: parent.height
+                            radius: 1.5
+                            color: root.transcriptSpeaker === "user" ? "#67e8f9" : "#86efac"
+                            opacity: 0.85
+                        }
+
+                        Column {
+                            width: parent.width - 13
+                            spacing: 4
+
+                            Text {
+                                text: root.transcriptSpeaker === "user" ? "YOU" : "GIDEON"
+                                color: root.transcriptSpeaker === "user" ? "#67e8f9" : "#86efac"
+                                font.family: "Inter, Roboto, sans-serif"
+                                font.pixelSize: 8
+                                font.weight: Font.DemiBold
+                                font.letterSpacing: 1.8
+                            }
+
+                            Text {
+                                id: transcriptBody
+                                text: root.transcriptText
+                                width: parent.width
+                                color: "#e2e8f0"
+                                font.family: "Inter, Roboto, sans-serif"
+                                font.pixelSize: 12
+                                lineHeight: 1.1
+                                wrapMode: Text.Wrap
+                                maximumLineCount: 3
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+                }
+
+            }
         }
     }
-}

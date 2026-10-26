@@ -64,7 +64,7 @@ border:1px solid rgba(255,255,255,.08);border-radius:18px;box-shadow:0 14px 44px
 </style></head><body>
 <canvas id="c"></canvas>
 <div id="hud"><i class="cn tl"></i><i class="cn tr"></i><i class="cn bl"></i><i class="cn br"></i>
-<div id="brand"><b>GIDEON PRIME</b><span>NEURAL LINK · <em id="link">STANDALONE</em></span></div>
+ <div id="brand"><b>GIDEON PRIME</b></div>
 <div id="top"><div id="mode"><i></i><span id="ms">IDLE</span></div><div id="tbadge">NO ACTIVE TOOL</div><div id="clk">--:--:--</div></div>
 <div id="tx" class="off"><p id="u"></p><p id="r"></p></div></div>
 <div id="jv" role="region" aria-label="Gideon controls">
@@ -155,13 +155,15 @@ function setReplyStream(text,instant=false){
   }
   if(!streamTimer)stepStream();
 }
-function user(t='',f=true){
-  uF=String(t);$('u').textContent=uF?'> '+uF:'';$('u').classList.toggle('live',!f);
-  if(uF){setReplyStream('')}
-  touch();
-}
-function reply(t='',a=false){
-  t=String(t);
+ function cleanDisplayText(t){
+   return String(t||'').replace(/```[\s\S]*?```/g,'').replace(/^\s*#{1,6}\s*(?:\d+[.:)\-]?\s*)?/gm,'').replace(/^\s*[>→⇒]\s*/gm,'').replace(/^\s*(?:[-*•]|\d+[.)])\s*/gm,'').replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/`([^`]+)`/g,'$1').replace(/\s+/g,' ').trim();
+ }
+ function user(t='',f=true){
+   uF=String(t);$('u').textContent=uF?'> '+uF:'';$('u').classList.toggle('live',!f);
+   if(uF){setReplyStream('');touch()}else if(!rF){clear()}
+ }
+ function reply(t='',a=false){
+   t=cleanDisplayText(t);
   const next=a?(streamTarget&&!streamTarget.endsWith(' ')&&!t.startsWith(' ')?streamTarget+' '+t:streamTarget+t):t;
   setReplyStream(next,false);
 }
@@ -306,8 +308,7 @@ addEventListener('resize',resize);
 
 /* ---------- control surface: JS API, WebSocket, postMessage, /state polling ---------- */
 let ws=null,wsTry=0,pollFail=0,pollOk=false,lastU,lastR;
-function setLink(){$('link').textContent=ws&&ws.readyState===1?'WS LINKED':pollOk?'HTTP /STATE':bridge?'API ATTACHED':'STANDALONE'}
-function handle(m){if(Array.isArray(m))return m.forEach(handle);if(!m||typeof m!=='object'||typeof m.cmd!=='string')return;if(m.cmd!=='demo'&&demoOn)demo(false);bridge=true;setLink();
+ function handle(m){if(Array.isArray(m))return m.forEach(handle);if(!m||typeof m!=='object'||typeof m.cmd!=='string')return;if(m.cmd!=='demo'&&demoOn)demo(false);bridge=true;
 window.dispatchEvent(new CustomEvent('jarvis:cmd',{detail:m}));
 switch(m.cmd){case'state':setState(m.value||m.state);break;case'level':setLevel(m.value);break;case'bands':setBands(m.value);break;case'user':user(m.text,m.final!==false);break;
 case'reply':reply(m.text,!!m.append);break;case'clear':clear();break;case'tool':tool(m);break;case'pulse':pulse(m.strength);break;case'earcon':earcon(m.kind);break;
@@ -315,15 +316,15 @@ case'ask':ask(m);break;case'ask-cancel':{const i=asks.findIndex(a=>a.id===m.id);
 case'progress':running.clear();if(m.active)running.set('p',{label:m.stage||'Working',target:'agent'});done=(m.recent||[]).slice(-5).map(s=>String(s).replace(/^Finished:\s*/,''));if(m.startedAt)t0=m.startedAt*1000;renderTask();break;
 case'mic':mic(m.on!==false);break;case'demo':demo(m.on!==false);break;case'config':Object.assign(cfg,m.value||{});break}}
 addEventListener('message',e=>{if((e.origin===location.origin||(window.parent!==window&&e.source===window.parent))&&e.data&&typeof e.data==='object')handle(e.data)});
-function connect(){if(!cfg.ws)return;try{ws=new WebSocket(cfg.ws)}catch(e){return retry()}ws.onopen=()=>{wsTry=0;bridge=true;setLink();emit({event:'ready',name:'GIDEON PRIME'})};
-ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data)}catch(e){return}handle(m)};ws.onclose=()=>{setLink();retry()};ws.onerror=()=>{try{ws.close()}catch(e){}}}
+ function connect(){if(!cfg.ws)return;try{ws=new WebSocket(cfg.ws)}catch(e){return retry()}ws.onopen=()=>{wsTry=0;bridge=true;emit({event:'ready',name:'GIDEON PRIME'})};
+ ws.onmessage=ev=>{let m;try{m=JSON.parse(ev.data)}catch(e){return}handle(m)};ws.onclose=()=>{retry()};ws.onerror=()=>{try{ws.close()}catch(e){}}}
 function retry(){setTimeout(connect,Math.min(8000,800*Math.pow(1.6,wsTry++)))}
-async function poll(){try{const r=await fetch(cfg.poll,{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json();pollFail=0;if(!pollOk){pollOk=bridge=true;setLink();if(demoOn)demo(false)}
-const s=j.state||j.mode;if(s&&STATES[s])setState(s);if(j.level!=null)setLevel(j.level);if(Array.isArray(j.bands))setBands(j.bands);
-if(j.user!=null&&j.user!==lastU){lastU=j.user;user(j.user,j.final!==false)}if(j.reply!=null&&j.reply!==lastR){lastR=j.reply;reply(j.reply)}if(j.tool)tool(j.tool);
+ async function poll(){try{const r=await fetch(cfg.poll,{cache:'no-store'});if(!r.ok)throw 0;const j=await r.json();pollFail=0;if(!pollOk){pollOk=bridge=true;if(demoOn)demo(false)}
+ const s=j.state||j.mode;if(s&&STATES[s])setState(s);if(j.level!=null)setLevel(j.level);if(Array.isArray(j.bands))setBands(j.bands);
+ if(j.user!==undefined&&j.user!==lastU){lastU=j.user;if(j.user)user(j.user,j.final!==false);else clear()}if(j.reply!==undefined&&j.reply!==lastR){lastR=j.reply;if(j.reply)reply(j.reply);else if(!j.user)clear();else setReplyStream('')}if(j.tool)tool(j.tool);
 if(j.effort){const idx=EFF.findIndex(e=>e[0]===j.effort);if(idx>=0&&idx!==ei){ei=idx;rEff()}}
 if(typeof j.wake==='boolean'){$('wake').setAttribute('aria-pressed',j.wake)}}
-catch(e){pollFail++;if(pollOk&&pollFail>8){pollOk=false;setLink()}}setTimeout(poll,pollFail>5?2500:75)}
+ catch(e){pollFail++;if(pollOk&&pollFail>8){pollOk=false}}setTimeout(poll,pollFail>5?2500:75)}
 /* demo loop (auto-runs while standalone) */
 let demoOn=0;const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function demo(on=true){const my=++demoOn*(on?1:0);if(!on){demoOn=0;return}demoOn=my;const alive=()=>demoOn===my,say=async(txt,fn,ms)=>{const w=txt.split(' ');for(let i=1;i<=w.length&&alive();i++){fn(w.slice(0,i).join(' '));sim.kick=1;await wait(ms)}};
@@ -334,7 +335,7 @@ tool({id:'d1',target:'shell',label:'reading build logs',status:'done'});ask({id:
 setState('speaking');await say('Two failures, both in the core package. I have queued a re-run and it needs your approval.',t=>reply(t),210);await wait(800);if(!alive())break;setState('idle');await wait(4800)}clearInterval(lev)}
 
 /* ---------- public API ---------- */
-const A=f=>(...a)=>{if(demoOn)demo(false);bridge=true;setLink();return f(...a)};
+ const A=f=>(...a)=>{if(demoOn)demo(false);bridge=true;return f(...a)};
 window.jarvis={version:'prime-1.0',config:cfg,state:A(setState),tool:A(tool),ask:A(ask),reply:A(reply),user:A(user),clear:A(clear),bands:A(setBands),level:A(setLevel),pulse:A(pulse),earcon:A(earcon),
 attachAudio:A(src=>{const a=ac();let n;if(src instanceof MediaStream)n=a.createMediaStreamSource(src);else if(src instanceof HTMLMediaElement)n=src._n||(src._n=a.createMediaElementSource(src),src._n.connect(a.destination),src._n);else n=src;outM.attach(n)}),detachAudio:()=>outM.detach(),
 mic,demo,send:handle,event:(n,d={})=>emit(Object.assign({},d,{event:n})),on(ev,fn){(listeners[ev]=listeners[ev]||[]).push(fn);return()=>{listeners[ev]=listeners[ev].filter(f=>f!==fn)}},

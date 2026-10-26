@@ -57,10 +57,10 @@ def clean_text_for_tts_patched(raw: str) -> Optional[str]:
     """Sanitizes text for neural TTS playback, stripping markdown, code, raw URLs, and paths."""
     if not raw:
         return None
-    # Strip markdown headers (# Foo -> Foo)
-    text = re.sub(r'^\s*#{1,6}\s*', '', raw)
-    # Strip markdown blockquotes (> Foo -> Foo)
-    text = re.sub(r'^\s*>\s*', '', text)
+    # Strip markdown headers, including malformed streamed forms such as ###1.
+    text = re.sub(r'(?m)^\s*#{1,6}\s*(?:\d+[.:)\-]?\s*)?', '', raw)
+    # Strip markdown blockquotes and arrow-style pointer lines.
+    text = re.sub(r'(?m)^\s*[>→⇒]\s*', '', text)
     # Strip HTML tags (<div ...>, </span>, etc.)
     text = re.sub(r'<[^>]+>', '', text)
     # Strip markdown links [label](url) -> label
@@ -77,8 +77,8 @@ def clean_text_for_tts_patched(raw: str) -> Optional[str]:
     text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
     text = re.sub(r'\*([^*]+)\*', r'\1', text)
     text = re.sub(r'__([^_]+)__', r'\1', text)
-    # Strip leading numbered list or bullet markers (e.g. "1. ", "2) ", "- ", "* ")
-    text = re.sub(r'^\s*(\d+[\.\)]|[-*•])\s*', '', text)
+    # Strip list markers at each streamed line.
+    text = re.sub(r'(?m)^\s*(\d+[\.\)]|[-*•])\s*', '', text)
     # Replace em-dashes and en-dashes with natural comma pauses
     text = text.replace('—', ', ').replace('–', ', ')
     # Collapse extra whitespace
@@ -175,6 +175,20 @@ class TestTTSSanitizer(unittest.TestCase):
         cleaned = clean_text_for_tts_patched(raw)
         self.assertEqual(cleaned, "Status: All systems are online & running, ready for commands.")
 
+    def test_heading_ordinals_and_pointer_lines_do_not_leak_into_speech(self):
+        self.assertEqual(
+            clean_text_for_tts_patched("###1. Explain the result."),
+            "Explain the result.",
+        )
+        self.assertEqual(
+            clean_text_for_tts_patched("> Point to explain the result."),
+            "Point to explain the result.",
+        )
+        self.assertEqual(
+            clean_text_for_tts_patched("- First point.\n→ Second point."),
+            "First point. Second point.",
+        )
+
     def test_bullet_and_list_stripping(self):
         """Ensures leading bullet points and numbered list markers are stripped."""
         self.assertEqual(clean_text_for_tts_patched("- Primary core running."), "Primary core running.")
@@ -245,6 +259,10 @@ class TestLiveTTSSanitizer(unittest.TestCase):
         """The live sentence regex must be the abbreviation-safe hardened pattern."""
         self.assertEqual(LIVE_SENTENCE_END.pattern, _SENTENCE_END_PATCHED.pattern)
         self.assertEqual(LIVE_SENTENCE_END.flags, _SENTENCE_END_PATCHED.flags)
+
+    def test_live_sanitizer_removes_heading_ordinals_and_pointer_lines(self):
+        self.assertEqual(live_clean_text_for_tts("###1. Explain the result."), "Explain the result.")
+        self.assertEqual(live_clean_text_for_tts("- First point.\n→ Second point."), "First point. Second point.")
 
     def test_live_sentence_split_abbreviations_no_fracture(self):
         sample = (

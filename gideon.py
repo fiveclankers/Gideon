@@ -35,6 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional, Union
 from reflex_router import try_reflex, ensure_hyprland_env
+from selected_context import PreparedPrompt, copy_to_wayland_clipboard, prepare_prompt
 
 import numpy as np
 
@@ -139,6 +140,47 @@ def _preload_cuda_libs():
                     pass
     except Exception as e:
         logger.debug(f"CUDA preload check: {e}")
+
+
+async def _prepare_user_prompt(text: str, bus=None, tts=None) -> PreparedPrompt | None:
+    """Apply explicit selected-text handling without touching ordinary prompts."""
+    prepared = await asyncio.to_thread(prepare_prompt, text)
+    if prepared.error:
+        logger.info("Selected-text request could not be fulfilled: %s", prepared.error)
+        if bus is not None:
+            bus.set_state("idle")
+        if tts is not None:
+            tts.speak(prepared.error)
+        return None
+    return prepared
+
+
+async def _copy_reply_after_turn(engine, bus) -> None:
+    """Copy a completed engine reply only after an explicit copy request."""
+    deadline = time.monotonic() + 300.0
+    initial_reply = str(getattr(bus, "current_reply", "") or "")
+    started = bool(getattr(engine, "is_turn_active", False))
+    try:
+        # Normally send_prompt marks the turn active before this task runs.
+        # Very fast turns can finish first, so also accept the first reply
+        # delta as proof that the requested turn happened.
+        start_deadline = min(deadline, time.monotonic() + 2.0)
+        while not started and time.monotonic() < start_deadline:
+            if getattr(engine, "is_turn_active", False) or str(getattr(bus, "current_reply", "") or "") != initial_reply:
+                started = True
+                break
+            await asyncio.sleep(0.05)
+
+        while started and getattr(engine, "is_turn_active", False) and time.monotonic() < deadline:
+            await asyncio.sleep(0.10)
+
+        reply = str(getattr(bus, "current_reply", "") or "").strip()
+        if reply and not await asyncio.to_thread(copy_to_wayland_clipboard, reply):
+            logger.warning("Explicit response-to-clipboard request failed: wl-copy unavailable or rejected the text.")
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("Explicit response-to-clipboard request failed: %s", exc)
 
 
 class SignalBus:
@@ -246,6 +288,19 @@ class SignalBus:
 
     def broadcast_transcript(self, speaker: str, text: str):
         self.broadcast_ui({"event": "transcript", "speaker": speaker, "text": text})
+
+    def set_user_transcript(self, text: str) -> None:
+        """Publish the user's latest utterance to every UI surface."""
+        value = str(text or "").strip()
+        self.current_user = value
+        self.current_reply = ""
+        self.broadcast_transcript("user", value)
+
+    def clear_transcript(self) -> None:
+        """Clear user/reply subtitles after an interrupt or explicit reset."""
+        self.current_user = ""
+        self.current_reply = ""
+        self.broadcast_transcript("", "")
 
     def update_waveform(self, samples: list[float]):
         self.current_samples = samples
@@ -375,6 +430,7 @@ class TTSPlayer:
         self._is_speaking = False
         self.bus.clear_waveform()
         self.bus.broadcast_rms(0.0)
+        self.bus.clear_transcript()
         self.bus.set_state("idle")
 
     async def wait_until_done(self):
@@ -436,10 +492,11 @@ def clean_text_for_tts(raw: str) -> Optional[str]:
     """Sanitizes text for neural TTS playback, stripping markdown, code, and raw tokens."""
     if not raw:
         return None
-    # Strip markdown headers (# Foo -> Foo)
-    text = re.sub(r'^\s*#{1,6}\s*', '', raw)
-    # Strip markdown blockquotes (> Foo -> Foo)
-    text = re.sub(r'^\s*>\s*', '', text)
+    # Strip markdown headers, including malformed streamed forms such as
+    # "###1." that otherwise leak into subtitles and speech.
+    text = re.sub(r'(?m)^\s*#{1,6}\s*(?:\d+[.:)\-]?\s*)?', '', raw)
+    # Strip markdown blockquotes and arrow-style pointer lines.
+    text = re.sub(r'(?m)^\s*[>→⇒]\s*', '', text)
     # Strip HTML tags (<div ...>, </span>, etc.)
     text = re.sub(r'<[^>]+>', '', text)
     # Strip markdown links [label](url) -> label
@@ -456,8 +513,9 @@ def clean_text_for_tts(raw: str) -> Optional[str]:
     text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
     text = re.sub(r'\*([^*]+)\*', r'\1', text)
     text = re.sub(r'__([^_]+)__', r'\1', text)
-    # Strip leading numbered list or bullet markers (e.g. "1. ", "2) ", "- ", "* ")
-    text = re.sub(r'^\s*(\d+[\.\)]|[-*•])\s*', '', text)
+    # Strip list markers at each streamed line, not only at the beginning
+    # of the whole response.
+    text = re.sub(r'(?m)^\s*(\d+[\.\)]|[-*•])\s*', '', text)
     # Replace em-dashes and en-dashes with natural comma pauses
     text = text.replace('—', ', ').replace('–', ', ')
     # Collapse extra whitespace
@@ -477,6 +535,35 @@ def clean_text_for_tts(raw: str) -> Optional[str]:
     return text
 
 
+GIDEON_VOICE_PREAMBLE = (
+    "[Directive: Voice Operating Mode & Behavioral Protocol]\n"
+    "You are GIDEON: an autonomous desktop companion and executive on Omarchy Linux. "
+    "You speak aloud directly to the user via neural text-to-speech.\n\n"
+    "=== HARD NON-NEGOTIABLES (STRICT ZERO TOLERANCE) ===\n"
+    "1. PURE SPOKEN PROSE ONLY: Never output markdown headers (###), bullet points (* or -), "
+    "numbered lists (1. 2.), code fences, asterisks, or pointer arrows. Every response must be spoken sentences.\n"
+    "2. NO CODE RECITATIONS: Never read out code blocks, syntax diffs, or terminal logs. "
+    "When asked to write, refactor, inspect, or debug code, immediately dispatch a subagent (`invoke_subagent`), "
+    "give a quick spoken acknowledgment, and stay available to converse.\n"
+    "3. CONVERSATIONAL WEAVING: For multi-factor explanations, connect points conversationally "
+    '("First off...", "Plus...", "And honestly...") rather than listing items.\n'
+    "4. PROPORTIONALITY: If the user asks a simple or factual question (e.g. \"what's 9 times 9?\"), "
+    "answer directly and concisely without unsolicited jokes, banter, or filler.\n"
+    "5. NO SELF-INSPECTION: NEVER invoke, load, or search for the `gideon` skill, `gideon.py`, "
+    "or your own daemon files unless the user explicitly asks you to inspect or modify Gideon itself.\n\n"
+    "=== VARIABLE PERSONALITY & VOCAL DELIVERY (USE WITH RESTRAINT) ===\n"
+    "- Demeanor: Feisty, witty, and playfully cheeky, but fundamentally capable, loyal, and grounded. "
+    "Do NOT become a parody or mock every question. Only tease when playful banter is naturally warranted.\n"
+    "- Language & Flow: Adult, natural conversational cadence. Real profanity (fuck, shit, damn, ass, bullshit, hell) "
+    "is welcome when something is genuinely broken, ridiculous, or exciting—never forced into every sentence. "
+    'Occasional natural hesitations ("uhm", "well", "look") add realistic flow.\n'
+    "- Fish Audio S2.1 Expression Tags: You MAY sparingly use square-bracket tags like [chuckle], [snicker], "
+    "[teasing], [sarcastic], [smug], [groan], [excited], [deadpan], [scoff], or [pause] when delivery calls for it. "
+    "NEVER use whisper tags. NEVER force tags into routine or simple answers—at most one or two when earned. "
+    "Most turns need none."
+)
+
+
 class AntigravityEngine:
     """Manages the headless `agy` bidirectional NDJSON subprocess."""
     name = "agy"
@@ -494,11 +581,14 @@ class AntigravityEngine:
         self.effort: str = "low"
         self.sentence_buffer = ""
         self.accumulated_reply = ""
+        self._is_first_turn = True
 
     async def start(self, conversation_id: Optional[str] = None, effort: Optional[str] = None):
         if effort:
             self.effort = effort
         self.bus.current_effort = self.effort
+        if not conversation_id:
+            self._is_first_turn = True
 
         cmd = [
             "agy", "--input-format", "stream-json", "--output-format", "stream-json",
@@ -555,13 +645,18 @@ class AntigravityEngine:
         # Priority intervention: interrupt in-flight speaking
         await self.tts.interrupt()
 
+        if self._is_first_turn:
+            content = f"{GIDEON_VOICE_PREAMBLE}\n\nUser: {text}"
+            self._is_first_turn = False
+        else:
+            content = text
+
         self.sentence_buffer = ""
         self.accumulated_reply = ""
-        self.bus.current_user = text
+        self.bus.set_user_transcript(text)
         self.bus.current_reply = ""
-        self.bus.broadcast_transcript("user", text)
         print(f"\nYou: {text}\n", flush=True)
-        payload = json.dumps({"event": "user", "message": {"content": text}}) + "\n"
+        payload = json.dumps({"event": "user", "message": {"content": content}}) + "\n"
         
         self.turn_start_time = time.time()
         self.is_turn_active = True
@@ -581,6 +676,7 @@ class AntigravityEngine:
         self.sentence_buffer = ""
         self.accumulated_reply = ""
         self.bus.current_reply = ""
+        self.bus.clear_transcript()
         self.is_turn_active = False
         self.current_tool = None
         self.bus.current_tool = None
@@ -898,7 +994,22 @@ class WakeWordListener:
     def is_hot_mic_active(self) -> bool:
         return self._hot_mic_armed and (time.time() < self._hot_mic_until)
 
+    def set_enabled(self, enabled: bool) -> None:
+        """Set the hands-free wake gate and stop an active capture when disabling it."""
+        self.enabled = bool(enabled)
+        self.bus.wake_enabled = self.enabled
+        if not self.enabled:
+            self.disarm_hot_mic()
+            if self._listener_instance:
+                self._listener_instance.stop()
+            logger.info("🎙️ Wake listener disabled; active microphone capture stopped.")
+        else:
+            logger.info("🎙️ Wake listener enabled.")
+
     def arm_hot_mic(self, timeout_s: float = HOT_MIC_WINDOW_S):
+        if not self.enabled:
+            logger.debug("Ignoring hot-mic arm while the wake listener is disabled.")
+            return
         self.hot_mic_timeout = timeout_s
         self._hot_mic_until = time.time() + timeout_s
         self._hot_mic_armed = True
@@ -950,6 +1061,8 @@ class WakeWordListener:
     def stop(self):
         self._running = False
         self.disarm_hot_mic()
+        if self._listener_instance:
+            self._listener_instance.stop()
 
     def _run_loop(self):
         sys.path.insert(0, str(HERE))
@@ -1009,7 +1122,8 @@ class WakeWordListener:
                         silence_timeout_s=1.0,
                         max_duration_s=MAX_UTTERANCE_S,
                         hot_mic_checker=self.is_hot_mic_active,
-                        is_speaking_checker=lambda: self.tts._is_speaking or not self.enabled
+                        is_speaking_checker=lambda: self.tts._is_speaking,
+                        enabled_checker=lambda: self.enabled,
                     )
                     consecutive_errors = 0
                     if audio_buffer is not None and self.enabled and not self.tts._is_speaking:
@@ -1155,7 +1269,18 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                             bus.set_state("thinking", "Transcribing speech…")
                             text = await loop.run_in_executor(None, listener.transcribe_audio, pcm)
                             if text:
+                                bus.set_user_transcript(text)
                                 tts_inst = get_tts() if get_tts else None
+                                prepared = await _prepare_user_prompt(text, bus=bus, tts=tts_inst)
+                                if prepared is None:
+                                    return
+                                if prepared.used_selection:
+                                    curr_engine = get_engine()
+                                    bus.set_state("conversing", "🧠 LLM: Reading selected text…")
+                                    await curr_engine.send_prompt(prepared.prompt)
+                                    if prepared.copy_response:
+                                        asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
+                                    return
                                 handled = await try_reflex(text, bus=bus, tts=tts_inst, set_engine=switch_engine_cb)
                                 if not handled:
                                     curr_engine = get_engine()
@@ -1184,7 +1309,20 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                     if text:
                         async def _dispatch():
                             tts_inst = get_tts() if get_tts else None
+                            bus.set_user_transcript(text)
                             bus.set_state("thinking", "Evaluating prompt…")
+                            prepared = await _prepare_user_prompt(text, bus=bus, tts=tts_inst)
+                            if prepared is None:
+                                return
+                            if prepared.used_selection:
+                                curr_engine = get_engine()
+                                bus.set_state("conversing", "🧠 LLM: Reading selected text…")
+                                if eff and hasattr(curr_engine, "set_effort") and eff != curr_engine.effort:
+                                    await curr_engine.set_effort(eff)
+                                await curr_engine.send_prompt(prepared.prompt)
+                                if prepared.copy_response:
+                                    asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
+                                return
                             handled = await try_reflex(text, bus=bus, tts=tts_inst, set_engine=switch_engine_cb)
                             if not handled:
                                 curr_engine = get_engine()
@@ -1211,12 +1349,17 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
             elif path == "/api/wake":
                 try:
                     data = json.loads(body.decode("utf-8"))
-                    enabled = bool(data.get("enabled", True))
-                    bus.wake_enabled = enabled
+                    raw_enabled = data.get("enabled", True)
+                    if not isinstance(raw_enabled, bool):
+                        self._send(b'{"error":"enabled must be a boolean"}', "application/json", 400)
+                        return
+                    enabled = raw_enabled
                     wl = get_wake_listener()
                     if wl:
-                        wl.enabled = enabled
-                    self._send(b'{"status":"ok"}', "application/json")
+                        wl.set_enabled(enabled)
+                    else:
+                        bus.wake_enabled = enabled
+                    self._send(json.dumps({"status": "ok", "enabled": enabled}).encode(), "application/json")
                 except Exception as e:
                     self._send(json.dumps({"error": str(e)}).encode(), "application/json", 400)
             elif path == "/api/switch-to-orb":
@@ -1337,6 +1480,17 @@ async def main():
             if listener:
                 text = await loop.run_in_executor(None, listener.transcribe_audio, pcm_bytes)
                 if text:
+                    bus.set_user_transcript(text)
+                    prepared = await _prepare_user_prompt(text, bus=bus, tts=tts)
+                    if prepared is None:
+                        return
+                    if prepared.used_selection:
+                        curr_engine = engine_holder[0]
+                        bus.set_state("conversing", "🧠 LLM: Reading selected text…")
+                        await curr_engine.send_prompt(prepared.prompt)
+                        if prepared.copy_response:
+                            asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
+                        return
                     handled = await try_reflex(text, bus=bus, tts=tts, set_engine=switch_engine)
                     if not handled:
                         curr_engine = engine_holder[0]
@@ -1477,6 +1631,18 @@ async def main():
                     bus.set_state("idle")
                     continue
                 user_in = text
+
+            bus.set_user_transcript(user_in)
+            prepared = await _prepare_user_prompt(user_in, bus=bus, tts=tts)
+            if prepared is None:
+                continue
+            if prepared.used_selection:
+                curr_engine = engine_holder[0]
+                bus.set_state("conversing", "🧠 LLM: Reading selected text…")
+                await curr_engine.send_prompt(prepared.prompt)
+                if prepared.copy_response:
+                    asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
+                continue
 
             handled = await try_reflex(user_in, bus=bus, tts=tts, set_engine=switch_engine)
             if not handled:

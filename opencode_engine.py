@@ -116,6 +116,7 @@ class OpenCodeEngine:
         self.turn_start_time = time.time()
         self.is_turn_active = True
         self._sentence_buffer = ""
+        self.bus.current_reply = ""
         self.bus.set_state("conversing", "🧠 LLM: Thinking…")
         if self._watchdog_task:
             self._watchdog_task.cancel()
@@ -254,6 +255,7 @@ class OpenCodeEngine:
             delta = data.get("delta", "")
             if delta:
                 self._sentence_buffer += delta
+                self.bus.current_reply = getattr(self.bus, "current_reply", "") + delta
             return "buffered"
         if ev_type == "session.step.started":
             # OpenCode has no per-tool name here; keep agent for watchdog context.

@@ -1,6 +1,6 @@
 # Gideon
 
-Gideon is a Linux voice companion that listens locally, routes quick desktop commands directly, and sends open ended requests to a conversational engine. It can speak replies through Fish Audio and show its current state in a browser HUD or a Quickshell overlay.
+Gideon is an Antigravity-powered Linux voice companion. She listens locally, handles quick desktop commands directly, and brings Antigravity's tools and conversational capabilities to a spoken interface. She speaks through Fish Audio and shows her current state in a browser HUD or a Quickshell overlay.
 
 Gideon is built around Omarchy and Hyprland. Some parts run on other Linux desktops, but workspace, theme, and window actions depend on those tools.
 
@@ -8,7 +8,8 @@ Gideon is built around Omarchy and Hyprland. Some parts run on other Linux deskt
 
 - Local speech recognition with Faster Whisper: `medium.en` on CUDA when available, with a `small.en` CPU fallback.
 - A deterministic reflex router plus a BGE-small ONNX intent dispatcher for common actions such as audio volume, workspace/window control, Omarchy tasks, media commands, engine changes, and quick notes. Unmatched prompts go to the active engine.
-- Antigravity (`agy`) as the default conversational engine; OpenCode can be selected with `--engine opencode` or `GIDEON_ENGINE=opencode`.
+- Headless Antigravity (`agy`) for conversation and tool-driven tasks, with GIDEON's voice persona injected on the first turn of a new conversation.
+- On-request selected-text and clipboard context, with an explicit option to copy the answer back.
 - Fish Audio speech synthesis, queued by sentence and played through PipeWire's `pw-play`.
 - Microphone wake listening, browser hold-to-talk, terminal input, and an interrupt command.
 - A WebGL HUD with live state and waveform data, plus newline-delimited Unix socket events for the Quickshell Orb.
@@ -27,7 +28,7 @@ Gideon is built around Omarchy and Hyprland. Some parts run on other Linux deskt
           |
           +-- no match --> BGE-small ONNX intent dispatcher
                               | local intent --> local handler
-                              ` passthrough --> agy / OpenCode
+                              ` passthrough --> Antigravity (agy)
                                                    |
                                   streamed text -> Fish Audio -> pw-play
                 |
@@ -45,8 +46,9 @@ The two visualizer servers are separate launch options: `gideon.py` embeds the d
 - Linux and Python 3.10 or newer. The source uses Python 3.10 union type syntax.
 - Python packages used by the daemon include `numpy`, `scipy`, `sounddevice`, `faster-whisper`, and `httpx`. The BGE-small intent dispatcher also uses `onnxruntime` and `transformers`, along with the local model and calibration files under `models/`. The `openwakeword` package enables wake phrase detection; if it is unavailable, the listener falls back to an energy trigger. Install the declared set with `python3 -m pip install -r requirements.txt`; versions are intentionally unpinned.
 - A working microphone and audio input stack for voice capture. Gideon uses `sounddevice` at 16 kHz mono.
+- `wl-clipboard` (`wl-paste` / `wl-copy`) for the explicit Wayland selected-text context flow; ordinary prompts never read the clipboard.
 - PipeWire and `pw-play` for spoken output.
-- A configured `agy` command for the default engine. The OpenCode option expects a running OpenCode service and its connection details in `~/.local/state/opencode/service.json`.
+- A configured Antigravity `agy` command with headless streaming support.
 - CUDA is optional. The listener attempts CUDA `medium.en` INT8, then falls back to CPU `small.en` INT8. CPU recognition is slower.
 - Omarchy and Hyprland are needed for the corresponding desktop actions; other Linux desktops can still use non-desktop parts, but those actions will not work.
 
@@ -64,7 +66,7 @@ The daemon starts its local HUD at <http://127.0.0.1:8790/>. For a preconfigured
 
 ## Configuration
 
-- `GIDEON_ENGINE=agy` selects the default engine; use `opencode` to select OpenCode. The command line accepts `--engine agy` or `--engine opencode`.
+- Antigravity is the default engine; select it explicitly with `GIDEON_ENGINE=agy` or `--engine agy`. See [advanced engine configuration](docs/ARCHITECTURE.md#advanced-engine-configuration) for optional backends.
 - Set `FISH_API_KEY` in the environment or in `~/.config/gideon/gideon.env` for Fish Audio. Gideon loads that file without replacing variables already in the environment. There is no default key; speech synthesis will fail without a valid credential.
 - `GIDEON_NOTES_FILE` changes the destination used by the reflex router's quick-note command. Its default is `~/notes/daily_ledger.md`.
 - `GIDEON_HEADPHONES_SINK` and `GIDEON_SPEAKERS_SINK` can set the sink names used by audio-output switching.
@@ -72,7 +74,15 @@ The daemon starts its local HUD at <http://127.0.0.1:8790/>. For a preconfigured
 
 ## Usage
 
-With the daemon running, say “Hey Jarvis” to start a hands-free turn, hold Space in the browser HUD while speaking, or submit a prompt through the HUD. If you launched Gideon in an interactive terminal, you can also type prompts there; enter `interrupt` to stop the active turn, or `engine agy` / `engine opencode` to switch engines. A systemd-managed daemon does not provide that interactive terminal input.
+With the daemon running, say “Hey Jarvis” to start a hands-free turn, hold Space in the browser HUD while speaking, or submit a prompt through the HUD. If you launched Gideon in an interactive terminal, you can also type prompts there; enter `interrupt` to stop the active turn. A systemd-managed daemon does not provide that interactive terminal input.
+
+GIDEON supplies the voice interface, persona, and desktop context; Antigravity handles open-ended reasoning and tool use. Workflows such as reminders and personal memory can be configured through the engine's tools and instructions. Their availability depends on that configuration.
+
+To ask about text you have selected or copied, use an explicit request such as
+`what does this mean?`, `read this and summarize`, `look at my clipboard`, or
+`with selected text: extract the action items`. GIDEON tries the Wayland primary
+selection first and then the normal clipboard only for those requests. To copy
+the completed answer back to the Wayland clipboard, add `and copy the answer`.
 
 Examples handled by the deterministic reflex router include:
 
@@ -100,7 +110,8 @@ The integrated HUD is served by `gideon.py` at `http://127.0.0.1:8790/`; it also
 | `reflex_router.py` | Fast deterministic command parser and action dispatcher. |
 | `gideon_handler.py`, `gideon_shared.py`, `handlers_*.py` | Intent handler table, shared command/result helpers, and system, Omarchy, and study handlers. |
 | `intents_schema.json` | Intent and slot definitions for the handler system. |
-| `engine_base.py`, `opencode_engine.py` | Engine interface and OpenCode backend. |
+| `engine_base.py` | Shared interface for conversational engines; see [backend details](docs/ARCHITECTURE.md#advanced-engine-configuration). |
+| `selected_context.py` | On-request Wayland selection capture and prompt context. |
 | `audio/`, `sounds/` | Wake/audio helpers and local sound assets. |
 | `signals/` | Runtime state and waveform files used by the visualizer. |
 | `ai-visualizer/` | Browser HUD faces and standalone static server. |

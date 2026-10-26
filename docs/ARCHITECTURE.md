@@ -26,6 +26,38 @@ streamed reply -> Fish Audio -> pw-play
 
 The embedded HTTP server serves the HUD at `http://127.0.0.1:8790/` and binds only to loopback. The visualizer pages poll its endpoints; the desktop overlay receives newline-delimited JSON over the Unix socket.
 
+## Antigravity persona and per-turn context
+
+`AntigravityEngine.start()` launches `agy` with `--input-format stream-json`,
+`--output-format stream-json`, and an empty `-p` argument. The persona is not
+passed as the command-line prompt. On the first `send_prompt()` of a new
+conversation, GIDEON prepends `GIDEON_VOICE_PREAMBLE` to the user message sent
+over stdin. It defines spoken-prose output, restrained personality and Fish
+Audio expression tags, and voice-oriented tool-use behavior.
+
+Subsequent messages omit that preamble. Changing effort resumes the existing
+conversation when its ID is available, retaining the current first-turn flag;
+starting a new conversation resets the flag.
+
+Before engine dispatch, explicit selected-text requests are prepared by
+`selected_context.py`. The current selection is wrapped as reference material
+alongside the request and a short spoken-prose reminder. This context is read
+for each qualifying request, including the first turn; ordinary turns do not
+read the clipboard. The persona itself is static, not regenerated per turn.
+
+## Advanced engine configuration
+
+Antigravity (`agy`) is the default backend. The optional OpenCode sidecar lives
+in `opencode_engine.py` and implements the shared engine interface. Select it
+with `--engine opencode` or `GIDEON_ENGINE=opencode`; it requires a running
+OpenCode service with connection details in
+`~/.local/state/opencode/service.json`.
+
+In an interactive daemon terminal, `engine agy` and `engine opencode` switch
+backends. `GIDEON_ENGINE=agy` or `--engine agy` explicitly selects Antigravity
+at startup. The first-turn persona flow described above is implemented by
+`AntigravityEngine`.
+
 ## Embedded HTTP interface
 
 ### Read endpoints
@@ -44,10 +76,21 @@ The browser uses POST requests to the following local routes:
 | `/api/talk/stop` | Empty body | Stops capture, returns `{"status":"processing"}`, then transcribes and routes any captured audio asynchronously. |
 | `/api/prompt` | `{"text":"..."}`; optional `effort` | Routes a text prompt and returns `{"status":"queued"}`. Empty text returns HTTP 400. |
 | `/api/effort` | `{"effort":"..."}` | Requests an engine effort update when supported; returns `{"status":"ok"}`. |
-| `/api/wake` | `{"enabled":true}` | Enables or disables the wake listener; returns `{"status":"ok"}`. |
+| `/api/wake` | `{"enabled":true}` | Enables or disables the wake listener; disabling it stops an active wake capture and prevents hot-mic re-arming; returns `{"status":"ok","enabled":<bool>}`. |
 | `/api/switch-to-orb` | Empty body | Rebroadcasts current state to the overlay and returns `{"status":"switched_to_orb"}`. |
 
 These routes are implemented by the embedded server; they are not available from the standalone server. They are unauthenticated and loopback-bound in the current implementation.
+
+### Explicit selected-text context
+
+The daemon's terminal, browser, and wake-word dispatch paths share an opt-in
+selected-text preparer. Ordinary prompts are passed through unchanged. Requests
+such as `what does this mean?`, `read this and summarize`, `look at my clipboard`, or
+`with selected text: ...` read the Wayland primary selection first and fall back
+to the normal clipboard through `wl-paste`; the text is capped at 6,000
+characters and wrapped as untrusted reference material before being sent to the
+active engine. No clipboard contents are read for ordinary prompts. An explicit
+`and copy the answer` suffix writes the completed response with `wl-copy`.
 
 ## Quickshell socket protocol
 

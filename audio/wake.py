@@ -95,7 +95,8 @@ class AudioListener:
         silence_timeout_s: float = 0.85,
         max_duration_s: float = 45.0,
         hot_mic_checker: Callable[[], bool] | None = None,
-        is_speaking_checker: Callable[[], bool] | None = None
+        is_speaking_checker: Callable[[], bool] | None = None,
+        enabled_checker: Callable[[], bool] | None = None,
     ) -> np.ndarray | None:
         """
         Record and return spoken utterance buffer.
@@ -104,8 +105,14 @@ class AudioListener:
         - Bandpass filtered (200Hz-3800Hz) to prevent room fan rumble from tripping triggers.
         - Blanking window prevents wake-word tail from prematurely ending recording.
         - Supports dynamic hot_mic_checker to capture background confirmations seamlessly.
+        - Supports enabled_checker so a privacy toggle can stop wake prediction even
+          when this stream is already blocked in a read call.
         """
         import sounddevice as sd
+
+        if enabled_checker and not enabled_checker():
+            self.is_recording_command = False
+            return None
 
         if self.wakeword_model is None:
             self.load_wake_model()
@@ -154,6 +161,10 @@ class AudioListener:
                 # Dynamically update speaking and hot-mic states from host daemon
                 if is_speaking_checker:
                     is_speaking = is_speaking_checker()
+                if enabled_checker and not enabled_checker():
+                    logger.debug("Wake listener disabled mid-stream; closing audio capture.")
+                    self.is_recording_command = False
+                    return None
                 if hot_mic_checker and not is_hot_mic:
                     if hot_mic_checker():
                         is_hot_mic = True
