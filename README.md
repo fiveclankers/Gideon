@@ -7,7 +7,7 @@ Gideon is built around Omarchy and Hyprland. Some parts run on other Linux deskt
 ## Features
 
 - Local speech recognition with Faster Whisper: `medium.en` on CUDA when available, with a `small.en` CPU fallback.
-- A deterministic reflex router plus a BGE-small ONNX intent dispatcher for common actions such as audio volume, workspace/window control, Omarchy tasks, media commands, engine changes, and quick notes. Unmatched prompts go to the active engine.
+- A deterministic reflex router plus a BGE-small ONNX intent dispatcher for actions such as audio volume, workspace or window control, application launching, Omarchy tasks, media commands, engine changes, and quick notes. Unmatched prompts go to the active engine.
 - Headless Antigravity (`agy`) for conversation and tool-driven tasks, with GIDEON's voice persona injected on the first turn of a new conversation.
 - On-request selected-text and clipboard context, with an explicit option to copy the answer back.
 - Fish Audio speech synthesis, queued by sentence and played through PipeWire's `pw-play`.
@@ -39,7 +39,7 @@ Gideon is built around Omarchy and Hyprland. Some parts run on other Linux deskt
 
 The two visualizer servers are separate launch options: `gideon.py` embeds the daemon HUD server; `ai-visualizer/server.py` runs the visualizer by itself. They use the same default port, so do not start both on port 8790 at once. See [the IPC contract](docs/ARCHITECTURE.md).
 
-## Quick Start
+## Quick start
 
 ### Requirements
 
@@ -74,7 +74,7 @@ The daemon starts its local HUD at <http://127.0.0.1:8790/>. For a preconfigured
 
 ## Usage
 
-With the daemon running, say “Hey Jarvis” to start a hands-free turn, hold Space in the browser HUD while speaking, or submit a prompt through the HUD. If you launched Gideon in an interactive terminal, you can also type prompts there; enter `interrupt` to stop the active turn. A systemd-managed daemon does not provide that interactive terminal input.
+With the daemon running, say "Hey Jarvis" to start a hands-free turn, hold Space in the browser HUD while speaking, or submit a prompt through the HUD. If you launched Gideon in an interactive terminal, you can also type prompts there; enter `interrupt` to stop the active turn. A systemd-managed daemon does not provide that interactive terminal input.
 
 GIDEON supplies the voice interface, persona, and desktop context; Antigravity handles open-ended reasoning and tool use. Workflows such as reminders and personal memory can be configured through the engine's tools and instructions. Their availability depends on that configuration.
 
@@ -90,6 +90,7 @@ Examples handled by the deterministic reflex router include:
 Mute audio
 Set volume to 30 percent
 Switch to workspace 2
+Open obsidian
 Play music by <artist>
 Note this down: revisit the routing test
 ```
