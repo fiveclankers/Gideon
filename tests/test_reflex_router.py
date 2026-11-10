@@ -387,11 +387,17 @@ class TestAudioOutputSwitcher(unittest.TestCase):
 
 
 class TestByeByeDismissal(unittest.TestCase):
-    def test_accepts_polite_mutations(self):
+    def test_accepts_polite_mutations_and_preceding_noise(self):
         for text in (
             "bye bye",
             "Bye-bye.",
+            "Bye, bye.",
+            "Bye. Bye.",
+            "byebye",
             "bye bye bye",
+            "you thank you bye bye",
+            "blah blah okay bye-bye",
+            "bye bye for now",
             "ok, thank you, bye bye",
             "alright bye bye",
             "okay bye bye.",
@@ -403,25 +409,43 @@ class TestByeByeDismissal(unittest.TestCase):
             "bye bye Gideon",
             "bye bye to you",
             "all right, bye bye",
+            "I said bye bye to him",
+            "bye bye or see you later",
+            "say bye bye now",
+            "fix the bug okay bye bye",
+            "note down: something bye bye",
+            "stop the music bye bye",
+            "turn off the track, bye-bye",
+            "okay play bye bye",
+            "pause the song bye bye",
+            "queue is fine bye bye",
+            "the song is bye bye bye",
         ):
             with self.subTest(text=text):
                 self.assertEqual(router.parse_command(text), {"intent": "dismiss", "summary": "back to idle"})
 
-    def test_rejects_bare_bye_by_and_embedded_mentions(self):
+    def test_rejects_bare_bye_by_and_unrelated_words(self):
         for text in (
             "bye", "by", "goodbye", "by the way", "buy buy", "by bye",
-            "I said bye bye to him", "bye bye or see you later",
-            "say bye bye now", "the song is bye bye bye",
+            "bypass the firewall",
         ):
             with self.subTest(text=text):
                 self.assertIsNone(router.parse_command(text))
 
     def test_music_request_containing_bye_bye_is_not_a_dismissal(self):
-        for text in ("play bye bye bye", "put on bye bye bye by NSYNC"):
+        for text in (
+            "play bye bye bye",
+            "put on bye bye bye by NSYNC",
+            "play bye bye bye by nsync",
+            "put on the song bye bye bye",
+            "queue bye bye bye",
+            "play NSync bye bye bye",
+            "play n'sync's bye bye bye",
+            "play n sync bye bye bye",
+        ):
             with self.subTest(text=text):
                 action = router.parse_command(text)
-                self.assertIsNotNone(action)
-                self.assertNotEqual(action.get("intent"), "dismiss")
+                self.assertNotEqual((action or {}).get("intent"), "dismiss")
 
     def test_dismissal_never_reaches_the_neural_dispatcher(self):
         async def run():
@@ -713,9 +737,12 @@ class TestGraphQueryExecution(unittest.IsolatedAsyncioTestCase):
 class TestDismissReflex(unittest.TestCase):
     def test_bye_bye_mutations_parse_as_dismiss(self):
         for text in (
-            "bye bye", "Bye-bye.", "okay bye bye", "alright, bye bye",
+            "bye bye", "Bye-bye.", "Bye, bye.", "byebye", "bye bye for now",
+            "you thank you bye bye", "blah blah okay bye-bye",
+            "okay bye bye", "alright, bye bye",
             "ok, thank you, bye bye", "Hey Jarvis, bye bye",
             "yeah ok bye bye", "we're done, bye bye", "bye bye Gideon",
+            "I said bye bye to him", "bye bye or see you later",
         ):
             with self.subTest(text=text):
                 action = router.parse_command(text)
@@ -723,15 +750,15 @@ class TestDismissReflex(unittest.TestCase):
                 self.assertEqual(action["intent"], "dismiss")
 
     def test_bare_bye_and_by_are_not_dismissals(self):
-        for text in ("bye", "by", "goodbye", "by the way", "buy buy", "by bye"):
+        for text in ("bye", "by", "goodbye", "by the way", "buy buy", "by bye", "bypass the firewall"):
             with self.subTest(text=text):
                 action = router.parse_command(text)
                 self.assertNotEqual((action or {}).get("intent"), "dismiss")
 
-    def test_bye_bye_embedded_in_sentence_is_not_dismissal(self):
+    def test_bye_bye_media_requests_are_not_dismissal(self):
         for text in (
-            "I said bye bye to him", "bye bye or see you later",
-            "play bye bye bye", "the song is bye bye bye",
+            "play bye bye bye",
+            "play bye bye bye by nsync", "put on the song bye bye bye",
         ):
             with self.subTest(text=text):
                 action = router.parse_command(text)
@@ -761,5 +788,234 @@ class TestDismissExecution(unittest.IsolatedAsyncioTestCase):
         dispatcher.dispatch.assert_not_awaited()
 
 
+class TestPendingConfirmationRoundTrip(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        router.get_pending_confirmation_store().clear()
+
+    def tearDown(self):
+        router.get_pending_confirmation_store().clear()
+
+    def _make_needs_confirm_result(self, intent="system_shutdown", risk_tier="dangerous", params=None):
+        from gideon_shared import HandlerResult
+        return HandlerResult(
+            ok=True,
+            message=f"Confirmation required for {intent} ({risk_tier})",
+            needs_confirmation=True,
+            data={
+                "intent": intent,
+                "confidence": 0.96,
+                "risk_tier": risk_tier,
+                "params": dict(params or {}),
+            },
+        )
+
+    def _make_confirmed_result(self, intent="system_shutdown", message="Shutting down system..."):
+        from gideon_shared import HandlerResult
+        return HandlerResult(
+            ok=True,
+            message=message,
+            needs_confirmation=False,
+            data={
+                "intent": intent,
+                "risk_tier": "dangerous",
+                "params": {"confirmed": True},
+                "confirmed": True,
+            },
+        )
+
+    async def test_needs_confirmation_speaks_question_arms_hot_mic_and_stores_pending(self):
+        dispatcher = AsyncMock()
+        dispatcher.dispatch = AsyncMock(return_value=self._make_needs_confirm_result("system_shutdown", "dangerous"))
+        bus = type("Bus", (), {"set_state": AsyncMock(), "arm_hot_mic": AsyncMock()})()
+        tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+
+        with patch.object(router, "get_gideon_dispatcher", return_value=dispatcher):
+            handled = await router.try_reflex("shut down the computer", bus=bus, tts=tts)
+
+        self.assertTrue(handled)
+        tts.speak.assert_awaited_once_with("Shut down the system? Say yes to confirm.")
+        tts.play_sound.assert_not_awaited()
+        bus.arm_hot_mic.assert_awaited_once_with(timeout_s=router.CONFIRMATION_EXPIRY_S)
+
+        pending = router.get_pending_confirmation_store().get()
+        self.assertIsNotNone(pending)
+        self.assertEqual(pending.intent_id, "system_shutdown")
+        self.assertEqual(pending.utterance, "shut down the computer")
+        self.assertEqual(pending.risk_tier, "dangerous")
+
+    async def test_affirmative_redispatches_stored_intent_with_confirmed_true_without_bge(self):
+        from gideon_shared import HandlerResult
+        import gideon_handler
+
+        for phrase in (
+            "yes", "Yes.", "yeah", "yep", "confirm", "confirmed",
+            "do it", "go ahead", "proceed", "affirmative", "yes do it", "yes please",
+        ):
+            with self.subTest(phrase=phrase):
+                router.get_pending_confirmation_store().clear()
+                mock_handler = AsyncMock(return_value=HandlerResult(ok=True, message="Shutting down system..."))
+                dispatcher = AsyncMock()
+                dispatcher.dispatch = AsyncMock(return_value=self._make_needs_confirm_result("system_shutdown", "dangerous"))
+
+                async def fake_dispatch_confirmed(intent_id, params=None, utterance="", risk_tier=None):
+                    exec_params = dict(params or {})
+                    exec_params["confirmed"] = True
+                    return await mock_handler(exec_params, raw_text=utterance)
+
+                dispatcher.dispatch_confirmed = AsyncMock(side_effect=fake_dispatch_confirmed)
+                bus = type("Bus", (), {"set_state": AsyncMock(), "arm_hot_mic": AsyncMock()})()
+                tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+
+                with (
+                    patch.object(router, "get_gideon_dispatcher", return_value=dispatcher),
+                    patch.dict(gideon_handler.INTENT_DISPATCH_MAP, {"system_shutdown": mock_handler}),
+                ):
+                    await router.try_reflex("shut down the computer", bus=bus, tts=tts)
+                    dispatcher.dispatch.reset_mock()
+                    tts.speak.reset_mock()
+
+                    handled = await router.try_reflex(phrase, bus=bus, tts=tts)
+
+                self.assertTrue(handled)
+                # BGE classifier dispatch must NOT be called on the affirmative utterance
+                dispatcher.dispatch.assert_not_awaited()
+                dispatcher.dispatch_confirmed.assert_awaited_once_with(
+                    intent_id="system_shutdown",
+                    params={},
+                    utterance="shut down the computer",
+                    risk_tier="dangerous",
+                )
+                mock_handler.assert_awaited_once_with({"confirmed": True}, raw_text="shut down the computer")
+                tts.play_sound.assert_awaited_once_with("acknowledged.wav")
+                tts.speak.assert_awaited_once_with("Shutting down system...")
+                self.assertIsNone(router.get_pending_confirmation_store().get())
+
+    async def test_negative_and_ambiguous_replies_cancel_and_do_not_execute(self):
+        for reply in ("no", "cancel", "stop", "you", "thank you", "yes but no", "yesterday"):
+            with self.subTest(reply=reply):
+                router.get_pending_confirmation_store().clear()
+                router.get_pending_confirmation_store().set(
+                    utterance="reboot the system",
+                    intent_id="system_reboot",
+                    params={},
+                    risk_tier="dangerous",
+                )
+                dispatcher = AsyncMock()
+                dispatcher.dispatch = AsyncMock(return_value=SimpleNamespace(ok=False, data={"escalated": True}))
+                dispatcher.dispatch_confirmed = AsyncMock()
+                bus = type("Bus", (), {"set_state": AsyncMock()})()
+                tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+
+                with patch.object(router, "get_gideon_dispatcher", return_value=dispatcher):
+                    handled = await router.try_reflex(reply, bus=bus, tts=tts)
+
+                dispatcher.dispatch_confirmed.assert_not_awaited()
+                self.assertIsNone(router.get_pending_confirmation_store().get())
+                tts.speak.assert_any_await("Cancelled.")
+                if reply in ("no", "cancel", "stop"):
+                    self.assertTrue(handled)
+                    dispatcher.dispatch.assert_not_awaited()
+                else:
+                    # Ambiguous / unrelated utterances cancel pending and then process normally
+                    self.assertFalse(handled)
+
+    async def test_unrelated_utterance_cancels_pending_and_processes_normally(self):
+        router.get_pending_confirmation_store().set(
+            utterance="shut down the system",
+            intent_id="system_shutdown",
+            params={},
+            risk_tier="dangerous",
+        )
+        dispatcher = AsyncMock()
+        dispatcher.dispatch_confirmed = AsyncMock()
+        bus = type("Bus", (), {"set_state": AsyncMock()})()
+        tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+
+        with (
+            patch.object(router, "get_gideon_dispatcher", return_value=dispatcher),
+            patch.object(router, "run_fixed", new=AsyncMock(return_value=(0, ""))) as run_fixed_mock,
+        ):
+            handled = await router.try_reflex("mute audio", bus=bus, tts=tts)
+
+        self.assertTrue(handled)
+        dispatcher.dispatch_confirmed.assert_not_awaited()
+        self.assertIsNone(router.get_pending_confirmation_store().get())
+        tts.speak.assert_any_await("Cancelled.")
+        run_fixed_mock.assert_awaited_once_with(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1"])
+
+    async def test_expired_pending_confirmation_is_not_executed_and_does_not_speak_cancelled(self):
+        store = router.get_pending_confirmation_store()
+        store.set(
+            utterance="reboot now",
+            intent_id="system_reboot",
+            params={},
+            risk_tier="dangerous",
+            created_at=time.monotonic() - (router.CONFIRMATION_EXPIRY_S + 5.0),
+        )
+        dispatcher = AsyncMock()
+        dispatcher.dispatch = AsyncMock(return_value=SimpleNamespace(ok=False, data={"escalated": True}))
+        dispatcher.dispatch_confirmed = AsyncMock()
+        bus = type("Bus", (), {"set_state": AsyncMock()})()
+        tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+
+        with patch.object(router, "get_gideon_dispatcher", return_value=dispatcher):
+            handled = await router.try_reflex("yes", bus=bus, tts=tts)
+
+        self.assertFalse(handled)
+        dispatcher.dispatch_confirmed.assert_not_awaited()
+        tts.speak.assert_not_awaited()
+        self.assertIsNone(store.get())
+
+    async def test_new_needs_confirmation_replaces_old_pending(self):
+        store = router.get_pending_confirmation_store()
+        store.set(
+            utterance="log out",
+            intent_id="system_logout",
+            params={},
+            risk_tier="confirm",
+        )
+        dispatcher = AsyncMock()
+        dispatcher.dispatch = AsyncMock(return_value=self._make_needs_confirm_result("omarchy_update", "confirm"))
+        bus = type("Bus", (), {"set_state": AsyncMock(), "arm_hot_mic": AsyncMock()})()
+        tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock()})()
+
+        with patch.object(router, "get_gideon_dispatcher", return_value=dispatcher):
+            handled = await router.try_reflex("update system packages", bus=bus, tts=tts)
+
+        self.assertTrue(handled)
+        pending = store.get()
+        self.assertIsNotNone(pending)
+        self.assertEqual(pending.intent_id, "omarchy_update")
+        tts.speak.assert_awaited_once_with("Update system packages? Say yes to confirm.")
+
+    async def test_bye_bye_while_pending_dismisses_silently_and_clears_pending(self):
+        store = router.get_pending_confirmation_store()
+        store.set(
+            utterance="shut down the system",
+            intent_id="system_shutdown",
+            params={},
+            risk_tier="dangerous",
+        )
+        dispatcher = AsyncMock()
+        dispatcher.dispatch = AsyncMock()
+        dispatcher.dispatch_confirmed = AsyncMock()
+        bus = type("Bus", (), {"set_state": AsyncMock(), "dismiss_hot_mic": AsyncMock()})()
+        tts = type("TTS", (), {"play_sound": AsyncMock(), "speak": AsyncMock(), "interrupt": AsyncMock()})()
+
+        with patch.object(router, "get_gideon_dispatcher", return_value=dispatcher):
+            handled = await router.try_reflex("bye bye", bus=bus, tts=tts)
+
+        self.assertTrue(handled)
+        self.assertIsNone(store.get())
+        dispatcher.dispatch.assert_not_awaited()
+        dispatcher.dispatch_confirmed.assert_not_awaited()
+        bus.dismiss_hot_mic.assert_awaited_once_with()
+        tts.interrupt.assert_awaited_once_with()
+        bus.set_state.assert_awaited_once_with("idle")
+        tts.speak.assert_not_awaited()
+        tts.play_sound.assert_not_awaited()
+
+
 if __name__ == "__main__":
     unittest.main()
+

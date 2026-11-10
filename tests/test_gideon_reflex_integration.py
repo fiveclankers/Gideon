@@ -50,6 +50,50 @@ class TestGideonReflexIntegration(unittest.IsolatedAsyncioTestCase):
         handled = await try_reflex("explain how quantum computing works", bus=self.bus, tts=self.tts, set_engine=mock_set_engine)
         self.assertFalse(handled)
 
+    async def test_bye_bye_utterance_never_invokes_llm_or_bge(self):
+        engine = MagicMock()
+        engine.send_prompt = AsyncMock()
+        engine.interrupt = AsyncMock()
+        self.bus.dismiss_hot_mic = MagicMock()
+        mock_dispatcher = MagicMock()
+        mock_dispatcher.dispatch = AsyncMock()
+
+        utterances = (
+            "you thank you bye bye",
+            "blah blah okay bye-bye",
+            "Bye, bye.",
+            "byebye",
+            "bye bye for now",
+            "with selected text: explain this bug and bye bye",
+            "look at my clipboard okay bye bye",
+            "fix the script why does it fail bye bye",
+        )
+        with (
+            patch("reflex_router.get_gideon_dispatcher", return_value=mock_dispatcher),
+            patch("gideon.prepare_prompt") as mock_prep,
+            patch.object(self.tts, "interrupt", new_callable=AsyncMock) as mock_tts_interrupt,
+        ):
+            for text in utterances:
+                with self.subTest(text=text):
+                    self.bus.dismiss_hot_mic.reset_mock()
+                    self.bus.set_state.reset_mock()
+                    mock_tts_interrupt.reset_mock()
+
+                    prepared = await gideon_module._prepare_user_prompt(text, bus=self.bus, tts=self.tts)
+                    self.assertIsNone(prepared)
+                    mock_prep.assert_not_called()
+
+                    from reflex_router import dispatch
+                    delegated = await dispatch(text, engine, bus=self.bus, tts=self.tts)
+                    self.assertTrue(delegated)
+
+                    engine.send_prompt.assert_not_awaited()
+                    engine.interrupt.assert_not_awaited()
+                    mock_dispatcher.dispatch.assert_not_awaited()
+                    self.bus.dismiss_hot_mic.assert_called()
+                    mock_tts_interrupt.assert_awaited()
+                    self.bus.set_state.assert_called_with("idle")
+
 
 if __name__ == "__main__":
     unittest.main()

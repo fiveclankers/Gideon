@@ -17,9 +17,11 @@ import logging
 import os
 import shutil
 import subprocess
+from pathlib import Path
 from typing import Any, Dict
+from urllib.parse import urlsplit
 
-from gideon_shared import HandlerResult, run_cmd, run_cmd_async
+from gideon_shared import HandlerResult, extract_params, run_cmd, run_cmd_async
 
 logger = logging.getLogger("gideon.handlers.system")
 
@@ -391,16 +393,66 @@ async def handle_workspace_prev(params: Dict[str, Any], raw_text: str = "") -> H
     return HandlerResult(ok=False, error=f"hyprctl workspace e-1 failed: {err or out}")
 
 
-# App Launch Helper (Non-blocking spawn)
-def _spawn_app(bin_name: str, app_label: str) -> HandlerResult:
+# App Launch Helper (Fast, verification-first spawn)
+def _find_active_window(match_patterns: list[str]) -> bool:
+    """Check if an app window is already running and mapped in Hyprland."""
     try:
+        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+        if not sig:
+            # Detect latest active signature if missing from subshell
+            u = os.getuid()
+            hypr_dir = Path(f"/run/user/{u}/hypr")
+            if hypr_dir.exists():
+                sigs = sorted(hypr_dir.glob("*"), key=os.path.getmtime, reverse=True)
+                if sigs:
+                    sig = sigs[0].name
+                    os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = sig
+        if not sig:
+            return False
+
+        out = subprocess.check_output(["hyprctl", "clients", "-j"], timeout=1.0)
+        clients = json.loads(out.decode("utf-8", errors="ignore"))
+        patterns = [p.lower() for p in match_patterns]
+        for c in clients:
+            c_class = (c.get("class") or "").lower()
+            c_initial = (c.get("initialClass") or "").lower()
+            c_title = (c.get("title") or "").lower()
+            if any(p in c_class or p in c_initial or p in c_title for p in patterns):
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def _spawn_app(bin_name: str, app_label: str, match_patterns: list[str] = None, *, url: str | None = None) -> HandlerResult:
+    patterns = match_patterns or [bin_name, app_label]
+    if url is None and _find_active_window(patterns):
+        # Already running and mapped!
+        return HandlerResult(ok=True, message=f"{app_label} is already open")
+
+    try:
+        env = os.environ.copy()
+        if "WAYLAND_DISPLAY" not in env:
+            env["WAYLAND_DISPLAY"] = "wayland-1"
+        if "XDG_RUNTIME_DIR" not in env:
+            env["XDG_RUNTIME_DIR"] = f"/run/user/{os.getuid()}"
+
+        # Use uwsm app if present for proper Hyprland desktop integration, else direct spawn
+        spawn_cmd = ["uwsm", "app", "--", bin_name] if shutil.which("uwsm") else [bin_name]
+        if url is not None:
+            # Let the browser's own single-instance IPC reuse its window, or
+            # create one. Submit once: no blank launch, guessed tab ID or retry.
+            spawn_cmd.extend(["--new-tab", url])
+
         subprocess.Popen(
-            [bin_name],
+            spawn_cmd,
+            env=env,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             start_new_session=True,
         )
-        return HandlerResult(ok=True, message=f"Launched {app_label}")
+        return HandlerResult(ok=True, message=f"Opening {app_label}", data={"url": url} if url is not None else {})
     except FileNotFoundError:
         return HandlerResult(ok=False, error=f"Executable '{bin_name}' not found on system")
     except Exception as exc:
@@ -408,38 +460,53 @@ def _spawn_app(bin_name: str, app_label: str) -> HandlerResult:
 
 
 async def handle_launch_browser(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    for bin_name, label in (
-        ("google-chrome-stable", "Google Chrome"),
-        ("brave", "Brave Browser"),
-        ("firefox", "Firefox"),
+    url = params.get("url", extract_params("launch_browser", raw_text).get("url"))
+    if url is not None:
+        try:
+            if not isinstance(url, str) or any(c.isspace() or ord(c) < 32 for c in url):
+                raise ValueError
+            parsed = urlsplit(url)
+            if parsed.scheme not in ("http", "https") or not parsed.hostname:
+                raise ValueError
+        except ValueError:
+            return HandlerResult(ok=False, error="Browser URL must be a single absolute HTTP(S) URL")
+    for bin_name, label, patterns in (
+        ("google-chrome-stable", "Google Chrome", ["chrome", "chromium", "google-chrome"]),
+        ("brave", "Brave Browser", ["brave", "brave-browser"]),
+        ("firefox", "Firefox", ["firefox"]),
     ):
         if shutil.which(bin_name):
-            return _spawn_app(bin_name, label)
+            return _spawn_app(bin_name, label, patterns, url=url)
     return HandlerResult(ok=False, error="No known browser executable found")
 
 
 async def handle_launch_brave(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    return _spawn_app("brave", "Brave Browser")
+    return _spawn_app("brave", "Brave Browser", ["brave", "brave-browser"])
 
 
 async def handle_launch_spotify(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    return _spawn_app("spotify", "Spotify")
+    return _spawn_app("spotify", "Spotify", ["spotify"])
 
 
 async def handle_launch_terminal(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    return _spawn_app("kitty", "Kitty Terminal")
+    return _spawn_app("kitty", "Kitty Terminal", ["kitty"])
 
 
 async def handle_launch_obsidian(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    return _spawn_app("obsidian", "Obsidian")
+    return _spawn_app("obsidian", "Obsidian", ["obsidian"])
 
 
 async def handle_launch_code(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    return _spawn_app("code", "VS Code")
+    return _spawn_app("code", "VS Code", ["code", "visual-studio-code"])
 
 
 async def handle_launch_file_manager(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    return _spawn_app("thunar", "Thunar File Manager")
+    return _spawn_app("thunar", "Thunar File Manager", ["thunar"])
+
+
+async def handle_launch_learnharness(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
+    app_image = "/home/cat/Applications/LearnHarness.AppImage"
+    return _spawn_app(app_image, "Learning Harness", ["learnharness", "LearnHarness"])
 
 
 # System / Power Handlers

@@ -18,6 +18,7 @@ class TestVoicePreamble(unittest.IsolatedAsyncioTestCase):
 
         # Mock subprocess stdin
         mock_proc = MagicMock()
+        mock_proc.returncode = None
         mock_stdin = MagicMock()
         mock_stdin.write = MagicMock()
         mock_stdin.drain = AsyncMock()

@@ -332,6 +332,13 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
             if m:
                 params["chapter"] = m.group(1).strip()
 
+    elif intent_id == "launch_browser":
+        # Preserve the literal URL, including case, query and fragment. Never
+        # infer a site or a browser tab handle from a classifier label.
+        match = re.search(r"https?://[^\s<>\"]+", text, re.I)
+        if match:
+            params["url"] = match.group(0)
+
     elif intent_id == "engine_switch":
         lower = text.lower()
         if "opencode" in lower or "open code" in lower or "open-code" in lower:

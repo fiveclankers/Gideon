@@ -63,6 +63,7 @@ from handlers_system import (
     handle_launch_obsidian,
     handle_launch_code,
     handle_launch_file_manager,
+    handle_launch_learnharness,
     handle_system_status,
     handle_system_lock,
     handle_system_logout,
@@ -150,6 +151,7 @@ INTENT_DISPATCH_MAP: Dict[str, Callable[[Dict[str, Any], str], Coroutine[Any, An
     "launch_obsidian": handle_launch_obsidian,
     "launch_code": handle_launch_code,
     "launch_file_manager": handle_launch_file_manager,
+    "launch_learnharness": handle_launch_learnharness,
 
     # Omarchy & Desktop
     "omarchy_theme_list": handle_omarchy_theme_list,
@@ -361,3 +363,30 @@ class GideonDispatcher:
         res.data["risk_tier"] = risk_tier
         res.data["params"] = params
         return res
+
+    async def dispatch_confirmed(
+        self,
+        intent_id: str,
+        params: Optional[Dict[str, Any]] = None,
+        utterance: str = "",
+        risk_tier: Optional[str] = None,
+    ) -> HandlerResult:
+        """Execute a previously classified intent after user confirmation without re-running BGE."""
+        intent_meta = self.schema.get(intent_id, {})
+        resolved_tier = risk_tier or intent_meta.get("risk_tier", "confirm")
+        exec_params = dict(params or {})
+        exec_params["confirmed"] = True
+
+        handler = INTENT_DISPATCH_MAP.get(intent_id)
+        if not handler:
+            return HandlerResult(ok=False, error=f"No handler mapped for intent '{intent_id}'")
+
+        res = await handler(exec_params, raw_text=utterance)
+        if res.data is None:
+            res.data = {}
+        res.data["intent"] = intent_id
+        res.data["risk_tier"] = resolved_tier
+        res.data["params"] = exec_params
+        res.data["confirmed"] = True
+        return res
+

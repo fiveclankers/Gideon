@@ -23,6 +23,7 @@ import logging
 import mimetypes
 import os
 import re
+import signal
 import site
 import struct
 import subprocess
@@ -31,10 +32,11 @@ import threading
 import time
 import urllib.request
 import webbrowser
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional, Union
-from reflex_router import try_reflex, ensure_hyprland_env
+from reflex_router import _is_dismissal, try_reflex, ensure_hyprland_env
 from selected_context import PreparedPrompt, copy_to_wayland_clipboard, prepare_prompt
 
 import numpy as np
@@ -61,6 +63,43 @@ HOT_MIC_WINDOW_S = 45.0
 # Budget handed to the capture loop for one utterance. It slides forward while
 # speech keeps arriving, so this is a silence-gap budget, not a hard clip.
 MAX_UTTERANCE_S = 45.0
+
+# Tunable wake-word & Whisper STT hallucination thresholds (override via env vars)
+WAKE_THRESHOLD = float(os.environ.get("GIDEON_WAKE_THRESHOLD", "0.45"))
+STT_NO_SPEECH_PROB_MAX = float(os.environ.get("GIDEON_STT_NO_SPEECH_PROB_MAX", "0.60"))
+STT_AVG_LOGPROB_MIN = float(os.environ.get("GIDEON_STT_AVG_LOGPROB_MIN", "-1.0"))
+STT_COMPRESSION_RATIO_MAX = float(os.environ.get("GIDEON_STT_COMPRESSION_RATIO_MAX", "2.4"))
+
+WHISPER_HALLUCINATION_PHRASES: frozenset[str] = frozenset({
+    "you",
+    "thank you",
+    "thanks",
+    "thank you very much",
+    "thank you so much",
+    "thanks a lot",
+    "thanks for watching",
+    "thank you for watching",
+    "thanks for listening",
+    "thank you for listening",
+    "thank you everyone",
+    "thanks everyone",
+    "bye",
+    "please subscribe",
+    "subscribe",
+    "like and subscribe",
+    "subtitles by the amara org community",
+    "amara org",
+})
+_WHISPER_HALLUCINATION_PREFIXES: tuple[str, ...] = (
+    "subtitles by ",
+    "subs by ",
+    "translated by ",
+    "transcribed by ",
+    "captions by ",
+)
+_REPEATED_NUMBER_CURRENCY_RE = re.compile(
+    r"^(?:[$€£¥]?\s*\d+(?:[.,]\d+)?(?:\s*[,.\s]\s*|$))+[.,!?;:]*$"
+)
 
 # Fish Audio Config
 FISH_TTS_URL = "https://api.fish.audio/v1/tts"
@@ -122,6 +161,82 @@ OPTIMAL_WHISPER_PROMPT = (
 )
 
 
+def _filter_stt_segments(segments) -> list[str]:
+    """Filter faster-whisper segments using confidence and compression metrics when present."""
+    kept: list[str] = []
+    for seg in segments:
+        seg_text = str(getattr(seg, "text", "") or "").strip()
+        if not seg_text:
+            continue
+        no_speech_prob = getattr(seg, "no_speech_prob", None)
+        avg_logprob = getattr(seg, "avg_logprob", None)
+        compression_ratio = getattr(seg, "compression_ratio", None)
+        if no_speech_prob is not None and float(no_speech_prob) > STT_NO_SPEECH_PROB_MAX:
+            logger.info(
+                "[STT Filter] Dropping segment %r (no_speech_prob=%.2f > %.2f)",
+                seg_text, float(no_speech_prob), STT_NO_SPEECH_PROB_MAX,
+            )
+            continue
+        if avg_logprob is not None and float(avg_logprob) < STT_AVG_LOGPROB_MIN:
+            logger.info(
+                "[STT Filter] Dropping segment %r (avg_logprob=%.2f < %.2f)",
+                seg_text, float(avg_logprob), STT_AVG_LOGPROB_MIN,
+            )
+            continue
+        if compression_ratio is not None and float(compression_ratio) > STT_COMPRESSION_RATIO_MAX:
+            logger.info(
+                "[STT Filter] Dropping segment %r (compression_ratio=%.2f > %.2f)",
+                seg_text, float(compression_ratio), STT_COMPRESSION_RATIO_MAX,
+            )
+            continue
+        kept.append(seg_text)
+    return kept
+
+
+def _get_hallucination_drop_reason(text: str | None) -> str | None:
+    """Return the reason an STT transcript should be dropped as silence/hallucination, or None to keep."""
+    if text is None:
+        return "empty transcript"
+    raw = str(text).strip()
+    if not raw:
+        return "empty transcript"
+    # IMPORTANT: "bye bye" dismissals must ALWAYS take precedence and never be dropped here.
+    if _is_dismissal(raw):
+        return None
+    if not any(ch.isalnum() for ch in raw):
+        return "punctuation/whitespace only"
+    # Keep genuine questions (e.g. "you there?") unless the whole utterance is a credit prefix.
+    has_question = "?" in raw
+    norm = re.sub(r"[^\w\s']", " ", raw.lower())
+    norm = " ".join(norm.split()).strip("'")
+    if not norm:
+        return "punctuation/whitespace only"
+    if norm.startswith(_WHISPER_HALLUCINATION_PREFIXES):
+        return f"whisper subtitle/credit hallucination ({norm!r})"
+    if not has_question and norm in WHISPER_HALLUCINATION_PHRASES:
+        return f"whisper silence hallucination ({norm!r})"
+    # Repeated hallucination phrases (e.g. "thank you. thank you.")
+    if not has_question:
+        clauses = [
+            " ".join(re.sub(r"[^\w\s']", " ", c.lower()).split()).strip("'")
+            for c in re.split(r"[.!?;,]+", raw)
+            if c.strip()
+        ]
+        clauses = [c for c in clauses if c]
+        if len(clauses) > 1 and all(c in WHISPER_HALLUCINATION_PHRASES for c in clauses):
+            return f"repeated whisper hallucination ({norm!r})"
+    if _REPEATED_NUMBER_CURRENCY_RE.fullmatch(raw) and (
+        any(sym in raw for sym in "$€£¥") or len(re.findall(r"\d+(?:[.,]\d+)?", raw)) >= 2
+    ):
+        return f"numeric/currency noise hallucination ({raw!r})"
+    return None
+
+
+def is_whisper_hallucination(text: str | None) -> bool:
+    """True when the whole utterance is empty, punctuation-only, or a known Whisper silence hallucination."""
+    return _get_hallucination_drop_reason(text) is not None
+
+
 def _preload_cuda_libs():
     """Make bundled CUDA libs resolvable for faster-whisper without torch."""
     try:
@@ -144,6 +259,13 @@ def _preload_cuda_libs():
 
 async def _prepare_user_prompt(text: str, bus=None, tts=None) -> PreparedPrompt | None:
     """Apply explicit selected-text handling without touching ordinary prompts."""
+    if _is_dismissal(text):
+        await try_reflex(text, bus=bus, tts=tts)
+        return None
+    drop_reason = _get_hallucination_drop_reason(text)
+    if drop_reason is not None:
+        logger.info("[STT Filter] Dropping hallucinated/empty utterance %r (%s)", text, drop_reason)
+        return None
     prepared = await asyncio.to_thread(prepare_prompt, text)
     if prepared.error:
         logger.info("Selected-text request could not be fulfilled: %s", prepared.error)
@@ -201,6 +323,13 @@ class SignalBus:
         self.wake_enabled = True
         self.ui_clients: set[asyncio.StreamWriter] = set()
         self._ui_server = None
+        # Thread-safety for UI broadcasts: audio callbacks (PortAudio) and the
+        # wake-listener thread run outside the event loop; writing to asyncio
+        # StreamWriters from those threads is not supported by asyncio.
+        # The retained native crash is in PortAudio/CFFI, not proof of a
+        # transport failure; keep these separate safety boundaries.
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop_thread_id: Optional[int] = None
         self.set_state("idle")
 
     async def start_ui_server(self):
@@ -238,6 +367,8 @@ class SignalBus:
 
         try:
             self._ui_server = await asyncio.start_unix_server(_client_connected, path=UI_SOCK_PATH)
+            self._loop = asyncio.get_running_loop()
+            self._loop_thread_id = threading.get_ident()
             self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
             logger.info(f"Gideon Quickshell UI IPC server active on {UI_SOCK_PATH}")
         except Exception as e:
@@ -249,10 +380,8 @@ class SignalBus:
             if self.ui_clients:
                 self.broadcast_ui({"event": "ping", "ts": time.time()})
 
-    def broadcast_ui(self, msg: dict):
-        if not self.ui_clients:
-            return
-        line = (json.dumps(msg) + "\n").encode()
+    def _write_ui_clients(self, line: bytes):
+        """Runs on the event loop thread only; writes one line to every client."""
         for w in list(self.ui_clients):
             if w.is_closing():
                 self.ui_clients.discard(w)
@@ -261,6 +390,23 @@ class SignalBus:
                 w.write(line)
             except Exception:
                 self.ui_clients.discard(w)
+
+    def broadcast_ui(self, msg: dict):
+        if not self.ui_clients:
+            return
+        line = (json.dumps(msg) + "\n").encode()
+        # Audio/PortAudio callbacks and the wake-listener thread call this from
+        # non-loop threads. StreamWriter.write is not thread-safe; marshal onto
+        # the loop thread. Without this the cffi callback exception path can
+        # abort the whole daemon (PyTuple_GET_SIZE assertion -> core dump).
+        if self._loop is not None and threading.get_ident() != self._loop_thread_id:
+            try:
+                self._loop.call_soon_threadsafe(self._write_ui_clients, line)
+            except RuntimeError:
+                # Loop closed during shutdown; drop the frame.
+                pass
+            return
+        self._write_ui_clients(line)
 
     def set_state(self, state: str, detail: str = ""):
         self.current_state = state
@@ -556,6 +702,10 @@ GIDEON_VOICE_PREAMBLE = (
     "7. SUBAGENT TURNOVER & OPEN-MIC PRESERVATION: Whenever launching a subagent (`invoke_subagent`), immediately yield the turn "
     "with a brief spoken acknowledgment in the same step. Never execute additional chained tools or hold open the model turn, "
     "so that the speech synthesis can finish and the voice loop immediately returns to the open-mic listening state.\n\n"
+    "8. OBSERVED-TAB-ONLY BROWSING: Use only observed tab IDs returned by browser tools in this session. "
+    "Open or navigate to the exact URL supplied or verified; NEVER invent tab handles or guess IDs. "
+    "After navigation, verify the loaded URL and page content before claiming success. If a tab is missing or stale, "
+    "list tabs again or open a new tab and use its returned ID.\n\n"
     "=== VARIABLE PERSONALITY & VOCAL DELIVERY (USE WITH RESTRAINT) ===\n"
     "- Demeanor: Feisty, witty, and playfully cheeky, but fundamentally capable, loyal, and grounded. "
     "Do NOT become a parody or mock every question. Only tease when playful banter is naturally warranted.\n"
@@ -587,13 +737,21 @@ class AntigravityEngine:
         self.sentence_buffer = ""
         self.accumulated_reply = ""
         self._is_first_turn = True
+        self._turn_generation = 0
+        self._pending_turns = deque()
+        self._finish_task = None
+        self._drain_task = None
+        self._restart_lock = asyncio.Lock()
+        self._closed = False
 
     async def start(self, conversation_id: Optional[str] = None, effort: Optional[str] = None):
+        self._closed = False
         if effort:
             self.effort = effort
         self.bus.current_effort = self.effort
         if not conversation_id:
             self._is_first_turn = True
+            self.conversation_id = None
 
         cmd = [
             "agy", "--input-format", "stream-json", "--output-format", "stream-json",
@@ -610,7 +768,9 @@ class AntigravityEngine:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
         )
-        init_line = await self.proc.stdout.readline()
+        init_line = await asyncio.wait_for(self.proc.stdout.readline(), timeout=10.0)
+        if not init_line:
+            raise RuntimeError(f"AGY exited during startup (exit code {self.proc.returncode})")
         if init_line:
             try:
                 init_data = json.loads(init_line.decode("utf-8", errors="ignore"))
@@ -618,12 +778,88 @@ class AntigravityEngine:
                 if cid:
                     self.conversation_id = cid
                 logger.info(f"Antigravity Engine connected and ready. (conv={self.conversation_id})")
-            except Exception:
+            except (ValueError, AttributeError):
                 logger.info("Antigravity Engine connected and ready.")
 
-        if self._read_task and not self._read_task.done():
+        if self.proc.returncode is not None:
+            raise RuntimeError(f"AGY exited during startup (exit code {self.proc.returncode})")
+
+        if self._read_task and self._read_task is not asyncio.current_task() and not self._read_task.done():
             self._read_task.cancel()
         self._read_task = asyncio.create_task(self._read_loop())
+
+    def _engine_alive(self):
+        return bool(self.proc and self.proc.returncode is None and self.proc.stdin)
+
+    def _engine_notice(self, text):
+        self.bus.current_reply = text
+        self.bus.set_state("idle", text)
+        self.tts.queue_sentence(text)
+
+    async def _discard_process(self):
+        proc = self.proc
+        if proc:
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                except ProcessLookupError:
+                    pass
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            self.proc = None
+
+    async def _ensure_engine_alive(self, failed_proc=None):
+        """Serialize EOF/input recovery; an old reader cannot reset a new child."""
+        async with self._restart_lock:
+            if self._closed:
+                return False
+            if failed_proc is not None and failed_proc is not self.proc:
+                return self._engine_alive()
+            if failed_proc is None and self._engine_alive():
+                return True
+            exit_code = self.proc.returncode if self.proc else None
+            logger.warning("AGY engine dropped (exit code %s); reconnecting", exit_code)
+            self._turn_generation += 1
+            tasks = []
+            for attr in ("_read_task", "_finish_task", "_drain_task", "_watchdog_task"):
+                task = getattr(self, attr)
+                if task is not asyncio.current_task():
+                    setattr(self, attr, None)
+                if task and task is not asyncio.current_task():
+                    task.cancel()
+                    tasks.append(task)
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self._pending_turns.clear()
+            self.sentence_buffer = ""
+            self.accumulated_reply = ""
+            self._reset_turn()
+            await self.tts.interrupt()
+            self._engine_notice("My engine dropped. I'm reconnecting.")
+            conversation_id = self.conversation_id
+            try:
+                await self._discard_process()
+                if self._closed:
+                    return False
+                try:
+                    await self.start(conversation_id=conversation_id, effort=self.effort)
+                except (OSError, RuntimeError, asyncio.TimeoutError):
+                    if not conversation_id:
+                        raise
+                    logger.warning("AGY could not resume conversation; starting fresh", exc_info=True)
+                    await self._discard_process()
+                    await self.start(effort=self.effort)
+                    self._engine_notice("I'm back, but I had to start a fresh conversation.")
+                if not self._engine_alive():
+                    raise RuntimeError("AGY exited after connecting")
+                return True
+            except (OSError, RuntimeError, asyncio.TimeoutError):
+                logger.warning("AGY reconnect failed; will retry on the next prompt", exc_info=True)
+                try:
+                    await self._discard_process()
+                except (OSError, RuntimeError, asyncio.TimeoutError):
+                    logger.warning("AGY process cleanup failed", exc_info=True)
+                self._reset_turn()
+                self._engine_notice("I couldn't reconnect. I'll try again when you next speak.")
+                return False
 
     async def set_effort(self, new_effort: str):
         if new_effort not in ("low", "medium", "high", "xhigh", "max"):
@@ -634,6 +870,7 @@ class AntigravityEngine:
         self.effort = new_effort
         self.bus.current_effort = new_effort
 
+        await self.close()
         if self.proc:
             try:
                 self.proc.terminate()
@@ -649,39 +886,81 @@ class AntigravityEngine:
             return
         # Priority intervention: interrupt in-flight speaking
         await self.tts.interrupt()
-
-        if self._is_first_turn:
-            content = f"{GIDEON_VOICE_PREAMBLE}\n\nUser: {text}"
-            self._is_first_turn = False
-        else:
-            content = text
+        if not await self._ensure_engine_alive():
+            return
 
         self.sentence_buffer = ""
         self.accumulated_reply = ""
         self.bus.set_user_transcript(text)
         self.bus.current_reply = ""
         print(f"\nYou: {text}\n", flush=True)
-        payload = json.dumps({"event": "user", "message": {"content": content}}) + "\n"
+        self._turn_generation += 1
+        if self._finish_task:
+            self._finish_task.cancel()
+            self._finish_task = None
         
         self.turn_start_time = time.time()
         self.is_turn_active = True
-        self.bus.set_state("conversing", "🧠 LLM: Thinking…")
+        self.bus.set_state("conversing", "LLM: Thinking…")
         
         # Start the 45-second hardened watchdog
         if self._watchdog_task:
             self._watchdog_task.cancel()
         self._watchdog_task = asyncio.create_task(self._watchdog_loop())
 
-        if self.proc and self.proc.stdin:
-            self.proc.stdin.write(payload.encode())
-            await self.proc.stdin.drain()
+        await self._write_prompt(text, self._turn_generation)
 
-    async def interrupt(self, hard: bool = False) -> bool:
-        await self.tts.interrupt()
-        self.sentence_buffer = ""
-        self.accumulated_reply = ""
-        self.bus.current_reply = ""
-        self.bus.clear_transcript()
+    async def _write_prompt(self, content: str, generation) -> bool:
+        """Queue native user input without blocking the input loop on pipe drain.
+
+        AGY 1.5.3 stream-json handles user events sequentially, not as an
+        immediate cancellation API. Keep one terminal-result slot per write.
+        """
+        previous_generation = self._turn_generation
+        if not await self._ensure_engine_alive():
+            return False
+        if previous_generation != self._turn_generation:
+            # A stop notification belongs only to the child/turn it targeted.
+            if generation is None:
+                return True
+            if generation != previous_generation:
+                return False
+            generation = self._turn_generation
+            self.is_turn_active = True
+            self.bus.current_reply = ""
+            self.bus.set_state("conversing", "LLM: Thinking…")
+            self._watchdog_task = asyncio.create_task(self._watchdog_loop())
+        if generation is not None and self._is_first_turn:
+            content = f"{GIDEON_VOICE_PREAMBLE}\n\nUser: {content}"
+        try:
+            payload = json.dumps({"event": "user", "message": {"content": content}}) + "\n"
+            self.proc.stdin.write(payload.encode())
+            if generation is not None:
+                self._is_first_turn = False
+            self._pending_turns.append(generation)
+            if not self._drain_task or self._drain_task.done():
+                self._drain_task = asyncio.create_task(self._drain_stdin(self.proc))
+            return True
+        except (OSError, RuntimeError) as exc:
+            logger.warning("AGY stdin write failed: %s", exc)
+            self._reset_turn()
+            self._engine_notice("My engine connection failed. Please try that again.")
+            return False
+
+    async def _drain_stdin(self, proc):
+        try:
+            await asyncio.wait_for(proc.stdin.drain(), timeout=5.0)
+        except (OSError, RuntimeError, asyncio.TimeoutError) as exc:
+            if proc is not self.proc:
+                return
+            logger.warning("AGY stdin unavailable: %s", exc)
+            # Buffered writes may still produce results. Retain their FIFO
+            # slots until EOF/close so a later prompt cannot consume old output.
+            await self.tts.interrupt()
+            self._reset_turn()
+            self._engine_notice("My engine connection stalled. Please try that again.")
+
+    def _reset_turn(self):
         self.is_turn_active = False
         self.current_tool = None
         self.bus.current_tool = None
@@ -689,7 +968,47 @@ class AntigravityEngine:
             self._watchdog_task.cancel()
             self._watchdog_task = None
         self.bus.set_state("idle")
-        return True
+
+    async def _finish_turn(self, generation):
+        await self.tts.wait_until_done()
+        if generation != self._turn_generation or not self.is_turn_active:
+            return
+        self._reset_turn()
+        if getattr(self, "wake_listener", None):
+            self.wake_listener.arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
+        print("\n[Turn Complete] Gideon is ready.\n", flush=True)
+
+    async def close(self):
+        self._closed = True
+        async with self._restart_lock:
+            self._closed = True
+            self._turn_generation += 1
+            tasks = [t for t in (self._read_task, self._finish_task, self._drain_task, self._watchdog_task) if t]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self._read_task = self._finish_task = self._drain_task = None
+            await self.tts.interrupt()
+            self._pending_turns.clear()
+            self._reset_turn()
+
+    async def interrupt(self, hard: bool = False) -> bool:
+        await self.tts.interrupt()
+        # Notify the existing conversation, never SIGINT/kill. This binary
+        # queues the request behind the active turn; do not call that live steer.
+        notified = True
+        if self.is_turn_active:
+            notified = await self._write_prompt("Stop the current task. Do not continue it or speak a reply; wait for my next instruction.", None)
+        self._turn_generation += 1
+        if self._finish_task:
+            self._finish_task.cancel()
+            self._finish_task = None
+        self.sentence_buffer = ""
+        self.accumulated_reply = ""
+        self.bus.current_reply = ""
+        self.bus.clear_transcript()
+        self._reset_turn()
+        return notified
 
     async def _watchdog_loop(self):
         """Speaks a calm check-in periodically during long turns, with collision protection."""
@@ -715,13 +1034,21 @@ class AntigravityEngine:
 
     async def _read_loop(self):
         """Consumes NDJSON lines from agy.stdout and yields spoken text sentences."""
+        proc = self.proc
         self.sentence_buffer = ""
         self.accumulated_reply = ""
         active_tool_id = 0
 
         while True:
-            line_bytes = await self.proc.stdout.readline()
+            try:
+                line_bytes = await proc.stdout.readline()
+            except (OSError, ValueError) as exc:
+                logger.warning("AGY stdout unavailable: %s", exc)
+                line_bytes = b""
             if not line_bytes:
+                await self._ensure_engine_alive(failed_proc=proc)
+                break
+            if proc is not self.proc:
                 break
             line = line_bytes.decode("utf-8", errors="ignore").strip()
             if not line:
@@ -732,7 +1059,16 @@ class AntigravityEngine:
             except Exception:
                 continue
 
+            if not isinstance(ev, dict):
+                continue
             event_type = ev.get("event")
+            generation = self._pending_turns[0] if self._pending_turns else None
+            if event_type == "result" and self._pending_turns:
+                self._pending_turns.popleft()
+            # Drain older results without resurrecting their UI/speech or
+            # allowing their completion callbacks to finish a newer turn.
+            if generation != self._turn_generation or not self.is_turn_active:
+                continue
             if event_type == "step_update":
                 update = ev.get("step_update", {})
                 step_type = update.get("step_type")
@@ -818,21 +1154,7 @@ class AntigravityEngine:
                         print(f"Gideon: {clean}", flush=True)
                         self.tts.queue_sentence(clean)
 
-                async def _on_turn_done():
-                    await self.tts.wait_until_done()
-                    self.is_turn_active = False
-                    self.current_tool = None
-                    self.bus.current_tool = None
-                    if self._watchdog_task:
-                        self._watchdog_task.cancel()
-                        self._watchdog_task = None
-                    if hasattr(self, "wake_listener") and self.wake_listener:
-                        self.wake_listener.arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
-                    else:
-                        self.bus.set_state("idle")
-                    print("\n[Turn Complete] Gideon is ready.\n", flush=True)
-
-                asyncio.create_task(_on_turn_done())
+                self._finish_task = asyncio.create_task(self._finish_turn(generation))
 
 
 class VoiceListener:
@@ -865,19 +1187,7 @@ class VoiceListener:
                 vad_filter=True,
                 vad_parameters=dict(min_silence_duration_ms=300)
             )
-            text = " ".join([seg.text for seg in segments]).strip()
-            if not text and len(audio_data) >= 8000:
-                # Fallback: if VAD aggressively filtered out short spelling or soft utterance, retry without VAD
-                segments_fallback, _ = self.model.transcribe(
-                    audio_data,
-                    beam_size=1,
-                    best_of=1,
-                    language="en",
-                    initial_prompt=OPTIMAL_WHISPER_PROMPT,
-                    vad_filter=False
-                )
-                text = " ".join([seg.text for seg in segments_fallback]).strip()
-            return text
+            return " ".join(_filter_stt_segments(segments)).strip()
         except Exception as e:
             err_lower = str(e).lower()
             if "out of memory" in err_lower or "cuda" in err_lower or "cublas" in err_lower:
@@ -901,7 +1211,7 @@ class VoiceListener:
                         vad_filter=True,
                         vad_parameters=dict(min_silence_duration_ms=300)
                     )
-                    return " ".join([seg.text for seg in segments]).strip()
+                    return " ".join(_filter_stt_segments(segments)).strip()
                 except Exception as e2:
                     logger.error(f"CPU fallback transcription failed: {e2}")
                     return ""
@@ -917,6 +1227,7 @@ class AudioStreamRecorder:
         self.frames = []
         self.is_recording = False
         self.stream = None
+        self._stream_lock = threading.Lock()
         self.ambient_floor = 0.010
         import scipy.signal as signal
         self.bp_b, self.bp_a = signal.butter(2, [200 / 8000, 3800 / 8000], btype="bandpass")
@@ -943,7 +1254,15 @@ class AudioStreamRecorder:
             self.bus.update_waveform(bars + [0.0] * 32)
 
     def start(self):
+        with self._stream_lock:
+            self._start()
+
+    def _start(self):
         import sounddevice as sd
+        # Replacing a live InputStream drops its CFFI callback owner while
+        # PortAudio can still invoke it. Duplicate HTTP starts are idempotent.
+        if self.stream is not None:
+            return
         self.frames = []
         self.is_recording = True
         self.bus.set_state("listening")
@@ -957,9 +1276,18 @@ class AudioStreamRecorder:
             self.stream.start()
             logger.info("🎙️ [Browser Hold-to-Talk] Microphone OPEN — listening...")
         except Exception as e:
+            self.is_recording = False
+            if self.stream is not None:
+                self.stream.close()
+                self.stream = None
+            self.bus.set_state("idle")
             logger.error(f"Error starting mic stream: {e}")
 
     def stop(self) -> bytes:
+        with self._stream_lock:
+            return self._stop()
+
+    def _stop(self) -> bytes:
         self.is_recording = False
         self.bus.current_level = 0.0
         self.bus.broadcast_rms(0.0)
@@ -968,10 +1296,13 @@ class AudioStreamRecorder:
         if self.stream:
             try:
                 self.stream.stop()
+            except Exception as exc:
+                logger.warning("Microphone stop failed; closing stream: %s", exc)
+            finally:
+                # Keep the callback owner until close completes, even when
+                # stop raises. A failed close must not orphan a live callback.
                 self.stream.close()
-            except Exception:
-                pass
-            self.stream = None
+                self.stream = None
         if not self.frames:
             return b""
         pcm = np.concatenate(self.frames).tobytes()
@@ -981,7 +1312,7 @@ class AudioStreamRecorder:
 
 class WakeWordListener:
     """Robust background listener with seamless conversational hot-mic talk buffer zone."""
-    def __init__(self, bus: SignalBus, tts: TTSPlayer, on_speech_captured, main_loop=None, wake_threshold: float = 0.20, hot_mic_timeout: float = HOT_MIC_WINDOW_S):
+    def __init__(self, bus: SignalBus, tts: TTSPlayer, on_speech_captured, main_loop=None, wake_threshold: float = WAKE_THRESHOLD, hot_mic_timeout: float = HOT_MIC_WINDOW_S):
         self.bus = bus
         self.tts = tts
         self.on_speech_captured = on_speech_captured
@@ -998,6 +1329,17 @@ class WakeWordListener:
 
     def is_hot_mic_active(self) -> bool:
         return self._hot_mic_armed and (time.time() < self._hot_mic_until)
+
+    def restore_state_after_drop(self) -> None:
+        """Quietly return the orb to hotmic (if original window is still running) or idle without re-arming/extending."""
+        if self.is_hot_mic_active():
+            remaining = max(0.1, self._hot_mic_until - time.time())
+            if self._listener_instance:
+                self._listener_instance.hot_mic_timeout = remaining
+            self.bus.set_state("hotmic")
+        else:
+            self.disarm_hot_mic()
+            self.bus.set_state("idle")
 
     def set_enabled(self, enabled: bool) -> None:
         """Set the hands-free wake gate and stop an active capture when disabling it."""
@@ -1119,6 +1461,8 @@ class WakeWordListener:
                 is_hot_mic = self.is_hot_mic_active()
                 if self._hot_mic_armed and not is_hot_mic:
                     self.disarm_hot_mic()
+                elif is_hot_mic:
+                    listener.hot_mic_timeout = max(0.1, self._hot_mic_until - time.time())
 
                 try:
                     audio_buffer = await listener.listen_for_command(
@@ -1132,8 +1476,8 @@ class WakeWordListener:
                     )
                     consecutive_errors = 0
                     if audio_buffer is not None and self.enabled and not self.tts._is_speaking:
-                        # Follow-up speech detected and recorded! Immediately disarm and flip to thinking
-                        self.disarm_hot_mic()
+                        # Speech detected and recorded: flip to thinking while preserving any remaining
+                        # hot-mic window until STT verifies the utterance is not silence/hallucination.
                         self.bus.set_state("thinking", "Transcribing speech…")
                         pcm_bytes = audio_buffer.astype(np.int16).tobytes()
                         self.on_speech_captured(pcm_bytes)
@@ -1145,12 +1489,8 @@ class WakeWordListener:
                     backoff = min(4.0, 0.5 * (2 ** min(consecutive_errors, 3)))
                     if consecutive_errors <= 2 or consecutive_errors % 10 == 0:
                         logger.error(f"Error in wake listener loop: {e} (backing off {backoff:.1f}s)")
-                    try:
-                        import sounddevice as sd
-                        sd._terminate()
-                        sd._initialize()
-                    except Exception:
-                        pass
+                    # Never globally terminate PortAudio here: the browser
+                    # recorder may still own a live CFFI callback stream.
                     await asyncio.sleep(backoff)
 
         try:
@@ -1274,6 +1614,16 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                             bus.set_state("thinking", "Transcribing speech…")
                             text = await loop.run_in_executor(None, listener.transcribe_audio, pcm)
                             if text:
+                                if _is_dismissal(text):
+                                    bus.set_user_transcript(text)
+                                    tts_inst = get_tts() if get_tts else None
+                                    await try_reflex(text, bus=bus, tts=tts_inst, set_engine=switch_engine_cb)
+                                    return
+                                drop_reason = _get_hallucination_drop_reason(text)
+                                if drop_reason is not None:
+                                    logger.info("[STT Filter] Dropping hallucinated/empty utterance %r (%s)", text, drop_reason)
+                                    bus.set_state("idle")
+                                    return
                                 bus.set_user_transcript(text)
                                 tts_inst = get_tts() if get_tts else None
                                 prepared = await _prepare_user_prompt(text, bus=bus, tts=tts_inst)
@@ -1281,7 +1631,7 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                                     return
                                 if prepared.used_selection:
                                     curr_engine = get_engine()
-                                    bus.set_state("conversing", "🧠 LLM: Reading selected text…")
+                                    bus.set_state("conversing", "LLM: Reading selected text…")
                                     await curr_engine.send_prompt(prepared.prompt)
                                     if prepared.copy_response:
                                         asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
@@ -1289,7 +1639,7 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                                 handled = await try_reflex(text, bus=bus, tts=tts_inst, set_engine=switch_engine_cb)
                                 if not handled:
                                     curr_engine = get_engine()
-                                    bus.set_state("conversing", "🧠 LLM: Thinking…")
+                                    bus.set_state("conversing", "LLM: Thinking…")
                                     await curr_engine.send_prompt(text)
                                 else:
                                     wake_listener = get_wake_listener()
@@ -1300,6 +1650,7 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                                                 wake_listener.arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
                                         asyncio.create_task(_post_talk())
                             else:
+                                logger.info("[STT Filter] Dropping empty capture (no speech detected)")
                                 bus.set_state("idle")
                         else:
                             bus.set_state("idle")
@@ -1321,7 +1672,7 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                                 return
                             if prepared.used_selection:
                                 curr_engine = get_engine()
-                                bus.set_state("conversing", "🧠 LLM: Reading selected text…")
+                                bus.set_state("conversing", "LLM: Reading selected text…")
                                 if eff and hasattr(curr_engine, "set_effort") and eff != curr_engine.effort:
                                     await curr_engine.set_effort(eff)
                                 await curr_engine.send_prompt(prepared.prompt)
@@ -1331,7 +1682,7 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                             handled = await try_reflex(text, bus=bus, tts=tts_inst, set_engine=switch_engine_cb)
                             if not handled:
                                 curr_engine = get_engine()
-                                bus.set_state("conversing", "🧠 LLM: Thinking…")
+                                bus.set_state("conversing", "LLM: Thinking…")
                                 if eff and hasattr(curr_engine, "set_effort") and eff != curr_engine.effort:
                                     await curr_engine.set_effort(eff)
                                 await curr_engine.send_prompt(text)
@@ -1478,20 +1829,39 @@ async def main():
     def on_wake_speech(pcm_bytes: bytes):
         bus.set_state("thinking", "Transcribing speech…")
         async def _process_voice():
-            curr_engine = engine_holder[0]
-            if curr_engine and getattr(curr_engine, "is_turn_active", False):
-                await curr_engine.interrupt()
             listener = listener_instance[0]
+            wl = wake_listener_holder[0]
             if listener:
                 text = await loop.run_in_executor(None, listener.transcribe_audio, pcm_bytes)
                 if text:
+                    # 1. Dismissal check ("bye bye") MUST run first
+                    if _is_dismissal(text):
+                        if wl:
+                            wl.disarm_hot_mic()
+                        bus.set_user_transcript(text)
+                        await try_reflex(text, bus=bus, tts=tts, set_engine=switch_engine)
+                        return
+                    # 2. Whisper silence/hallucination filter: drop before transcript/BGE/LLM
+                    # and do NOT re-arm, extend, or reset the hot-mic window.
+                    drop_reason = _get_hallucination_drop_reason(text)
+                    if drop_reason is not None:
+                        logger.info("[STT Filter] Dropping hallucinated/empty utterance %r (%s)", text, drop_reason)
+                        if wl:
+                            wl.restore_state_after_drop()
+                        else:
+                            bus.set_state("idle")
+                        return
+                    if wl:
+                        wl.disarm_hot_mic()
                     bus.set_user_transcript(text)
+                    # send_prompt stops TTS and injects the actual follow-up.
+                    # Do not enqueue a separate stop turn before every prompt.
                     prepared = await _prepare_user_prompt(text, bus=bus, tts=tts)
                     if prepared is None:
                         return
                     if prepared.used_selection:
                         curr_engine = engine_holder[0]
-                        bus.set_state("conversing", "🧠 LLM: Reading selected text…")
+                        bus.set_state("conversing", "LLM: Reading selected text…")
                         await curr_engine.send_prompt(prepared.prompt)
                         if prepared.copy_response:
                             asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
@@ -1499,7 +1869,7 @@ async def main():
                     handled = await try_reflex(text, bus=bus, tts=tts, set_engine=switch_engine)
                     if not handled:
                         curr_engine = engine_holder[0]
-                        bus.set_state("conversing", "🧠 LLM: Thinking…")
+                        bus.set_state("conversing", "LLM: Thinking…")
                         await curr_engine.send_prompt(text)
                     else:
                         async def _post_wake():
@@ -1508,11 +1878,16 @@ async def main():
                                 wake_listener_holder[0].arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
                         asyncio.create_task(_post_wake())
                 else:
-                    bus.set_state("idle")
-                    if wake_listener_holder[0]:
-                        wake_listener_holder[0].arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
+                    logger.info("[STT Filter] Dropping empty capture (no speech detected)")
+                    if wl:
+                        wl.restore_state_after_drop()
+                    else:
+                        bus.set_state("idle")
             else:
-                bus.set_state("idle")
+                if wl:
+                    wl.restore_state_after_drop()
+                else:
+                    bus.set_state("idle")
         asyncio.run_coroutine_threadsafe(_process_voice(), loop)
 
     wake_listener = WakeWordListener(
@@ -1520,12 +1895,13 @@ async def main():
         tts=tts,
         on_speech_captured=on_wake_speech,
         main_loop=loop,
-        wake_threshold=0.20
+        wake_threshold=WAKE_THRESHOLD
     )
     wake_listener_holder[0] = wake_listener
     engine.wake_listener = wake_listener
     # Farewell ("bye bye") reflex hook: drop the hot-mic window and settle idle.
     bus.dismiss_hot_mic = wake_listener.disarm_hot_mic
+    bus.arm_hot_mic = wake_listener.arm_hot_mic
 
     # Pre-warm BGE-small INT8 ONNX dispatcher immediately at startup
     try:
@@ -1643,7 +2019,7 @@ async def main():
                 continue
             if prepared.used_selection:
                 curr_engine = engine_holder[0]
-                bus.set_state("conversing", "🧠 LLM: Reading selected text…")
+                bus.set_state("conversing", "LLM: Reading selected text…")
                 await curr_engine.send_prompt(prepared.prompt)
                 if prepared.copy_response:
                     asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))

@@ -117,7 +117,7 @@ class OpenCodeEngine:
         self.is_turn_active = True
         self._sentence_buffer = ""
         self.bus.current_reply = ""
-        self.bus.set_state("conversing", "🧠 LLM: Thinking…")
+        self.bus.set_state("conversing", "LLM: Thinking…")
         if self._watchdog_task:
             self._watchdog_task.cancel()
         self._watchdog_task = asyncio.create_task(self._watchdog_loop())

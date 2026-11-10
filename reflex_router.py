@@ -157,20 +157,24 @@ def is_generic_music_request(text: str) -> bool:
         return False
     return bool(_MUSIC_ANY_RE.fullmatch(re.sub(r"[.!?]+$", "", text).strip()))
 
-# Farewell dismissal ("bye bye" and its polite mutations). A single "bye" is
-# deliberately NOT a dismissal: ASR routinely transcribes "by" as "bye".
-_DISMISS_PREFIX_FILLERS = frozenset({
-    "ok", "okay", "k", "alright", "all", "right", "so", "yeah", "yep", "yup",
-    "well", "good", "great", "cool", "nice", "and", "then", "now", "please",
-    "thanks", "thank", "you", "thx", "cheers", "very", "much", "a", "lot",
-    "i", "im", "i'm", "we", "we're", "were", "are", "is", "am", "done",
-    "that", "thats", "that's", "it", "for", "hey", "gideon", "jarvis",
-    "mate", "buddy",
-})
-_DISMISS_TRAILERS = frozenset({
-    "gideon", "jarvis", "now", "then", "ok", "okay", "alright", "thanks",
-    "thank", "you", "mate", "buddy", "cheers", "for", "good", "night", "to",
-})
+# Farewell dismissal ("bye bye" anywhere in the utterance). A single "bye" or
+# "goodbye" is deliberately NOT a dismissal: ASR routinely transcribes "by" as
+# "bye". The only exception to "bye bye" winning is an explicit media/music
+# request (e.g. "play NSync's Bye Bye Bye").
+_BYE_BYE_CORE_RE = re.compile(
+    r"\bbye(?:[\s,.\-!?;:']*bye)+\b",
+    re.IGNORECASE,
+)
+_BYE_BYE_MEDIA_EXCEPTION_RE = re.compile(
+    r"\b(?:play|put\s+on|queue)\b.*?\bbye(?:[\s,.\-!?;:']*bye){2,}\b"
+    r"|"
+    r"\b(?:play|put\s+on|queue)\b.*?\bbye(?:[\s,.\-!?;:']*bye)+\b.*?\bn['’\-]?\s*sync\b"
+    r"|"
+    r"\b(?:play|put\s+on|queue)\b.*?\bn['’\-]?\s*sync\b.*?\bbye(?:[\s,.\-!?;:']*bye)+\b"
+    r"|"
+    r"\bn['’\-]?\s*sync\b.*?\b(?:play|put\s+on|queue)\b.*?\bbye(?:[\s,.\-!?;:']*bye)+\b",
+    re.IGNORECASE,
+)
 
 # Conversational statements about a play/performance must not be mistaken for
 # media commands. These checks run only after the deterministic parser misses.
@@ -289,30 +293,30 @@ def _looks_conversational(text: str) -> bool:
 
 
 def _is_dismissal(value: str) -> bool:
-    """True when the utterance is a farewell built on a repeated "bye bye" core.
+    """True when the utterance contains a "bye bye" farewell core anywhere.
 
-    Accepts polite mutations ("ok, thank you, bye bye", "alright bye bye",
-    "bye-bye for now") while rejecting a bare "bye", "by" or "goodbye", and
-    rejecting sentences where "bye bye" is merely embedded in conversation.
+    Accepts any preceding/trailing words or Whisper punctuation variants
+    ("you thank you bye bye", "blah blah okay bye-bye", "Bye, bye.", "byebye",
+    "bye bye for now") while rejecting a single bare "bye", "by", "goodbye",
+    or "bypass", and exempting explicit media/music requests (e.g.
+    "play bye bye bye by nsync").
     """
-    tokens = [t for t in re.split(r"[^a-z']+", value.lower()) if t]
-    while tokens and tokens[-1] in _DISMISS_TRAILERS:
-        tokens.pop()
-    if len(tokens) < 2 or tokens[-1] != "bye":
+    if not isinstance(value, str) or not _BYE_BYE_CORE_RE.search(value):
         return False
-    start = len(tokens)
-    while start > 0 and tokens[start - 1] == "bye":
-        start -= 1
-    if len(tokens) - start < 2:
+    if _BYE_BYE_MEDIA_EXCEPTION_RE.search(value):
         return False
-    return all(t in _DISMISS_PREFIX_FILLERS for t in tokens[:start])
+    return True
 
 
 def parse_command(text: str) -> dict[str, Any] | None:
     """Return a structured action without importing or allocating a model."""
-    if not isinstance(text, str) or not text.strip() or _UNSAFE_CONTEXT.search(text):
+    if not isinstance(text, str) or not text.strip():
         return None
     raw = text.strip()
+    if _is_dismissal(raw):
+        return {"intent": "dismiss", "summary": "back to idle"}
+    if _UNSAFE_CONTEXT.search(text):
+        return None
     value = re.sub(r"[.!?]+$", "", raw).strip().lower()
     # Strip optional wake word prefix for zero-latency contiguous one-shot commands
     value = re.sub(r"^(?:hey\s+)?jarvis\s*[,:]?\s*", "", value).strip()
@@ -326,9 +330,6 @@ def parse_command(text: str) -> dict[str, Any] | None:
     note_match = _NOTE_RE.fullmatch(raw) or _NOTE_RE.fullmatch(raw_stripped)
     if note_match and note_match.group(1).strip():
         return {"intent": "flash_note", "body": note_match.group(1).strip()}
-
-    if _is_dismissal(value):
-        return {"intent": "dismiss", "summary": "back to idle"}
 
     if value in {"mute", "mute audio", "mute volume", "silence audio"}:
         return {"intent": "system_action", "argv": ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1"], "summary": "muted audio"}
@@ -452,6 +453,30 @@ def parse_command(text: str) -> dict[str, Any] | None:
     if value in _WINDOW_CONTROL_MAP:
         argv = list(_WINDOW_CONTROL_MAP[value])
         return {"intent": "system_action", "argv": argv, "summary": " ".join(argv[2:])}
+
+    # Fast Tier-0 app launch patterns (<1ms)
+    app_patterns = {
+        "open learnharness": "launch_learnharness",
+        "launch learnharness": "launch_learnharness",
+        "open learn harness": "launch_learnharness",
+        "launch learn harness": "launch_learnharness",
+        "open obsidian": "launch_obsidian",
+        "launch obsidian": "launch_obsidian",
+        "open chrome": "launch_browser",
+        "launch chrome": "launch_browser",
+        "open terminal": "launch_terminal",
+        "launch terminal": "launch_terminal",
+        "open kitty": "launch_terminal",
+        "launch kitty": "launch_terminal",
+        "open spotify": "launch_spotify",
+        "launch spotify": "launch_spotify",
+        "open brave": "launch_brave",
+        "launch brave": "launch_brave",
+        "open code": "launch_code",
+        "launch code": "launch_code",
+    }
+    if value in app_patterns:
+        return {"intent": "app_launch", "app": app_patterns[value], "summary": f"app {app_patterns[value]}"}
 
     for regex in _GRAPH_QUERY_RES:
         match = regex.fullmatch(value)
@@ -657,21 +682,268 @@ async def _await_if_needed(value: Any) -> Any:
     return await value if inspect.isawaitable(value) else value
 
 
+CONFIRMATION_EXPIRY_S: float = 20.0
+
+_AFFIRMATIVE_REPLIES = frozenset({
+    "yes", "yeah", "yep", "confirm", "confirmed", "do it",
+    "go ahead", "proceed", "affirmative", "yes do it", "yes please",
+})
+
+_NEGATIVE_REPLIES = frozenset({
+    "no", "nope", "nah", "cancel", "cancelled", "canceled", "stop",
+    "abort", "never mind", "nevermind", "don't", "dont", "do not",
+    "no thanks", "no thank you",
+})
+
+_CONFIRMATION_QUESTIONS: dict[str, str] = {
+    "system_shutdown": "Shut down the system? Say yes to confirm.",
+    "system_reboot": "Reboot the system? Say yes to confirm.",
+    "system_logout": "Log out of the session? Say yes to confirm.",
+    "omarchy_update": "Update system packages? Say yes to confirm.",
+    "window_close": "Close the active window? Say yes to confirm.",
+}
+
+
+def _normalize_confirmation_reply(text: str) -> str:
+    """Normalize an utterance for whole-utterance confirmation matching."""
+    if not isinstance(text, str):
+        return ""
+    cleaned = text.strip().lower()
+    cleaned = re.sub(r"^(?:hey\s+)?(?:gideon|jarvis)\s*[,:]?\s*", "", cleaned)
+    cleaned = re.sub(r"[^\w\s']", " ", cleaned)
+    return " ".join(cleaned.split())
+
+
+def is_affirmative_reply(text: str) -> bool:
+    """Return True only when the entire normalized utterance is an explicit affirmative."""
+    return _normalize_confirmation_reply(text) in _AFFIRMATIVE_REPLIES
+
+
+def is_negative_reply(text: str) -> bool:
+    """Return True when the entire normalized utterance is an explicit cancellation/refusal."""
+    return _normalize_confirmation_reply(text) in _NEGATIVE_REPLIES
+
+
+def format_confirmation_question(intent_id: str) -> str:
+    """Derive a short human confirmation question from the intent ID."""
+    if intent_id in _CONFIRMATION_QUESTIONS:
+        return _CONFIRMATION_QUESTIONS[intent_id]
+    human = intent_id.replace("_", " ").strip().capitalize()
+    return f"{human}? Say yes to confirm."
+
+
+class PendingConfirmation:
+    """Represents a single pending confirmation for a confirm/dangerous intent."""
+    __slots__ = ("utterance", "intent_id", "params", "risk_tier", "created_at", "expiry_s")
+
+    def __init__(
+        self,
+        utterance: str,
+        intent_id: str,
+        params: dict[str, Any] | None = None,
+        risk_tier: str = "confirm",
+        created_at: float | None = None,
+        expiry_s: float = CONFIRMATION_EXPIRY_S,
+    ) -> None:
+        self.utterance = utterance
+        self.intent_id = intent_id
+        self.params = dict(params or {})
+        self.risk_tier = risk_tier
+        self.created_at = time.monotonic() if created_at is None else created_at
+        self.expiry_s = expiry_s
+
+    def is_expired(self, now: float | None = None) -> bool:
+        current = time.monotonic() if now is None else now
+        return (current - self.created_at) >= self.expiry_s
+
+
+class PendingConfirmationStore:
+    """Holds at most one active pending confirmation with automatic expiry."""
+    def __init__(self, expiry_s: float = CONFIRMATION_EXPIRY_S) -> None:
+        self.default_expiry_s = expiry_s
+        self._pending: PendingConfirmation | None = None
+
+    def set(
+        self,
+        utterance: str,
+        intent_id: str,
+        params: dict[str, Any] | None = None,
+        risk_tier: str = "confirm",
+        created_at: float | None = None,
+        expiry_s: float | None = None,
+    ) -> PendingConfirmation:
+        exp = self.default_expiry_s if expiry_s is None else expiry_s
+        self._pending = PendingConfirmation(
+            utterance=utterance,
+            intent_id=intent_id,
+            params=params,
+            risk_tier=risk_tier,
+            created_at=created_at,
+            expiry_s=exp,
+        )
+        return self._pending
+
+    def get(self, now: float | None = None) -> PendingConfirmation | None:
+        if self._pending is None:
+            return None
+        if self._pending.is_expired(now=now):
+            self._pending = None
+            return None
+        return self._pending
+
+    def pop(self, now: float | None = None) -> tuple[PendingConfirmation | None, bool]:
+        """Remove and return (pending, was_expired)."""
+        if self._pending is None:
+            return None, False
+        pending = self._pending
+        self._pending = None
+        if pending.is_expired(now=now):
+            return None, True
+        return pending, False
+
+    def clear(self) -> None:
+        self._pending = None
+
+
+_pending_confirmation_store = PendingConfirmationStore()
+
+
+def get_pending_confirmation_store() -> PendingConfirmationStore:
+    return _pending_confirmation_store
+
+
+async def _set_reflex_bus_state(bus: Any, label_text: str) -> None:
+    if bus is None:
+        return
+    if type(bus).__name__ == "SignalBus":
+        label = f"⚡ BGE: {label_text}"
+        await _await_if_needed(bus.set_state("bge_reflex", label))
+        async def _revert_tier1_idle():
+            await asyncio.sleep(2.0)
+            if getattr(bus, "current_state", "") == "bge_reflex":
+                await _await_if_needed(bus.set_state("idle"))
+        task = asyncio.create_task(_revert_tier1_idle())
+        _GRAPH_TASKS.add(task)
+        task.add_done_callback(_GRAPH_TASKS.discard)
+    else:
+        await _await_if_needed(bus.set_state("idle"))
+
+
+async def _arm_hot_mic_if_available(bus: Any, timeout_s: float = CONFIRMATION_EXPIRY_S) -> None:
+    if bus is None:
+        return
+    arm = getattr(bus, "arm_hot_mic", None)
+    if callable(arm):
+        try:
+            sig = inspect.signature(arm)
+            if "timeout_s" in sig.parameters or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+            ):
+                await _await_if_needed(arm(timeout_s=timeout_s))
+            elif len(sig.parameters) >= 1:
+                await _await_if_needed(arm(timeout_s))
+            else:
+                await _await_if_needed(arm())
+        except (ValueError, TypeError):
+            await _await_if_needed(arm(timeout_s=timeout_s))
+
+
 async def try_reflex(
     text: str, bus: Any = None, tts: Any = None,
     set_engine: Callable[[str], Any] | None = None,
 ) -> bool:
     """Execute a matching deterministic reflex and report whether it handled it."""
     started = time.perf_counter()
-    if not isinstance(text, str) or not text.strip() or _UNSAFE_CONTEXT.search(text):
+    if not isinstance(text, str) or not text.strip():
         return False
+
+    # 1. Check for dismissal first ('bye bye' always wins, clears any pending confirmation silently)
     action = parse_command(text)
+    if action is not None and action.get("intent") == "dismiss":
+        _pending_confirmation_store.clear()
+        disarm = getattr(bus, "dismiss_hot_mic", None) if bus is not None else None
+        if callable(disarm):
+            await _await_if_needed(disarm())
+        if tts is not None:
+            interrupt = getattr(tts, "interrupt", None)
+            if callable(interrupt):
+                await _await_if_needed(interrupt())
+        if bus is not None:
+            await _await_if_needed(bus.set_state("idle"))
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        logger.info("[Tier-0 Reflex] dismiss (%.1fms): back to idle", elapsed_ms)
+        return True
+
+    # 2. Check for pending confirmation before running Tier-0 or BGE
+    pending, _was_expired = _pending_confirmation_store.pop()
+    cancelled_pending = False
+    if pending is not None:
+        if is_affirmative_reply(text):
+            dispatcher = get_gideon_dispatcher()
+            if dispatcher is None:
+                return False
+            try:
+                if hasattr(dispatcher, "dispatch_confirmed"):
+                    res = await dispatcher.dispatch_confirmed(
+                        intent_id=pending.intent_id,
+                        params=pending.params,
+                        utterance=pending.utterance,
+                        risk_tier=pending.risk_tier,
+                    )
+                else:
+                    res = await dispatcher.dispatch(pending.utterance, confirmed=True)
+                if res.ok and not getattr(res, "needs_confirmation", False):
+                    if tts is not None:
+                        play = getattr(tts, "play_sound", None)
+                        if play:
+                            await _await_if_needed(play("acknowledged.wav"))
+                        speak = getattr(tts, "speak", None)
+                        if speak and res.message:
+                            await _await_if_needed(speak(res.message))
+                    elapsed_ms = (time.perf_counter() - started) * 1000
+                    logger.info("[Tier-1 Confirmed] %s (%.1fms): %s", pending.intent_id, elapsed_ms, res.message)
+                    await _set_reflex_bus_state(bus, res.message or pending.intent_id)
+                    return True
+                logger.warning("Tier-1 confirmed execution for %s failed: %s", pending.intent_id, getattr(res, "error", None))
+                if bus is not None:
+                    await _await_if_needed(bus.set_state("idle"))
+                return True
+            except Exception:
+                logger.exception("Tier-1 confirmed execution failed for %s", pending.intent_id)
+                if bus is not None:
+                    await _await_if_needed(bus.set_state("idle"))
+                return True
+
+        logger.info("[Tier-1 Confirmation] Cancelled pending %s on reply: %r", pending.intent_id, text[:80])
+        if is_negative_reply(text):
+            if tts is not None:
+                speak = getattr(tts, "speak", None)
+                if speak:
+                    await _await_if_needed(speak("Cancelled."))
+            if bus is not None:
+                await _await_if_needed(bus.set_state("idle"))
+            return True
+        cancelled_pending = True
+
+    async def _speak_cancelled_if_needed() -> None:
+        nonlocal cancelled_pending
+        if cancelled_pending:
+            cancelled_pending = False
+            if tts is not None:
+                speak = getattr(tts, "speak", None)
+                if speak:
+                    await _await_if_needed(speak("Cancelled."))
+
     if action is None:
+        if _UNSAFE_CONTEXT.search(text):
+            await _speak_cancelled_if_needed()
+            return False
         # Conversation about a play/performance must not be classified as a
         # media command. BGE is trained on atomic commands and over-fires on
         # "play" in short conversational replies.
         if _looks_conversational(text):
             logger.info("[Tier-1 bypass] conversational utterance routed to LLM: %r", text[:120])
+            await _speak_cancelled_if_needed()
             return False
         # Tier-1: Neural Reflex Dispatcher (GIDEON v2 BGE-small INT8 ONNX sequence classification)
         dispatcher = get_gideon_dispatcher()
@@ -682,6 +954,26 @@ async def try_reflex(
                 passthroughs = {"conversation", "hard_goal", "web_search", "browser_use_passthrough"}
                 # Only intercept if it's a valid local deterministic action and not escalated to LLM
                 if res.ok and intent and intent not in passthroughs and not res.data.get("escalated"):
+                    if getattr(res, "needs_confirmation", False):
+                        risk_tier = (res.data or {}).get("risk_tier", "confirm")
+                        params = (res.data or {}).get("params") or {}
+                        _pending_confirmation_store.set(
+                            utterance=text,
+                            intent_id=intent,
+                            params=params,
+                            risk_tier=risk_tier,
+                        )
+                        question = format_confirmation_question(intent)
+                        if tts is not None:
+                            speak = getattr(tts, "speak", None)
+                            if speak:
+                                await _await_if_needed(speak(question))
+                        await _arm_hot_mic_if_available(bus, timeout_s=CONFIRMATION_EXPIRY_S)
+                        elapsed_ms = (time.perf_counter() - started) * 1000
+                        logger.info("[Tier-1 Confirmation Needed] %s (%s, %.1fms): %s", intent, risk_tier, elapsed_ms, question)
+                        await _set_reflex_bus_state(bus, question)
+                        return True
+                    await _speak_cancelled_if_needed()
                     if intent == "engine_switch":
                         target_engine = res.data.get("params", {}).get("engine", "antigravity")
                         # Tier-1 BGE can surface either alias; the engine switcher
@@ -705,41 +997,16 @@ async def try_reflex(
                             await _await_if_needed(speak(res.message))
                     elapsed_ms = (time.perf_counter() - started) * 1000
                     logger.info("[Tier-1 Neural Reflex] %s (%.1fms): %s", intent, elapsed_ms, res.message)
-                    if bus is not None:
-                        if type(bus).__name__ == "SignalBus":
-                            label = f"⚡ BGE: {res.message or intent}"
-                            await _await_if_needed(bus.set_state("bge_reflex", label))
-                            async def _revert_tier1_idle():
-                                await asyncio.sleep(2.0)
-                                if getattr(bus, "current_state", "") == "bge_reflex":
-                                    await _await_if_needed(bus.set_state("idle"))
-                            task = asyncio.create_task(_revert_tier1_idle())
-                            _GRAPH_TASKS.add(task)
-                            task.add_done_callback(_GRAPH_TASKS.discard)
-                        else:
-                            await _await_if_needed(bus.set_state("idle"))
+                    await _set_reflex_bus_state(bus, res.message or intent)
                     return True
             except Exception:
                 logger.exception("Tier-1 neural reflex failed; falling through to LLM")
+        await _speak_cancelled_if_needed()
         return False
 
+    await _speak_cancelled_if_needed()
     intent = action["intent"]
     try:
-        if intent == "dismiss":
-            # Farewell: drop the follow-up hot-mic window, stop any speech, and
-            # settle straight back to idle without a TTS acknowledgement.
-            disarm = getattr(bus, "dismiss_hot_mic", None) if bus is not None else None
-            if callable(disarm):
-                await _await_if_needed(disarm())
-            if tts is not None:
-                interrupt = getattr(tts, "interrupt", None)
-                if callable(interrupt):
-                    await _await_if_needed(interrupt())
-            if bus is not None:
-                await _await_if_needed(bus.set_state("idle"))
-            elapsed_ms = (time.perf_counter() - started) * 1000
-            logger.info("[Tier-0 Reflex] dismiss (%.1fms): back to idle", elapsed_ms)
-            return True
         if intent == "graph_query":
             query = action["query"]
             task = asyncio.create_task(_run_graph_query(query, bus=bus, tts=tts))
@@ -766,6 +1033,17 @@ async def try_reflex(
                 logger.warning("Tier-0 media command failed: %s", result.error)
                 return False
             summary = action["summary"]
+        elif intent == "app_launch":
+            from gideon_handler import INTENT_DISPATCH_MAP
+            app_intent = action["app"]
+            handler = INTENT_DISPATCH_MAP.get(app_intent)
+            if not handler:
+                return False
+            result = await handler({}, raw_text=text)
+            if not result.ok:
+                logger.warning("Tier-0 app launch failed: %s", result.error)
+                return False
+            summary = result.message
         elif intent == "music_play":
             if action.get("kind") == "any":
                 argv = [MUSIC_BIN, "play", "--shuffle", "--limit", "50"]
@@ -793,6 +1071,10 @@ async def try_reflex(
                 speak = getattr(tts, "speak", None)
                 if speak:
                     await _await_if_needed(speak("Note saved."))
+            elif intent == "app_launch":
+                speak = getattr(tts, "speak", None)
+                if speak and summary:
+                    await _await_if_needed(speak(summary))
             elif intent == "engine_switch":
                 speak = getattr(tts, "speak", None)
                 if speak:
@@ -827,6 +1109,6 @@ async def dispatch(
         return True
     if delegate:
         if bus is not None and type(bus).__name__ == "SignalBus":
-            await _await_if_needed(bus.set_state("conversing", "🧠 LLM: Thinking…"))
+            await _await_if_needed(bus.set_state("conversing", "LLM: Thinking…"))
         await _await_if_needed(engine.send_prompt(text))
     return False

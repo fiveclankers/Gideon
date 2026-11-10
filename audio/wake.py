@@ -9,6 +9,7 @@ Handles:
 import asyncio
 import logging
 import math
+import os
 import time
 from typing import Callable
 import numpy as np
@@ -26,19 +27,29 @@ BP_B, BP_A = signal.butter(2, [200 / 8000, 3800 / 8000], btype="bandpass")
 # valve against a stuck VAD.
 ABSOLUTE_MAX_CAPTURE_S = 180.0
 
+# Tunable wake-word & hot-mic capture guards (override via environment variables)
+DEFAULT_WAKE_THRESHOLD = float(os.environ.get("GIDEON_WAKE_THRESHOLD", "0.45"))
+WAKE_PATIENCE_FRAMES = int(os.environ.get("GIDEON_WAKE_PATIENCE_FRAMES", "2"))
+WAKE_REFRACTORY_S = float(os.environ.get("GIDEON_WAKE_REFRACTORY_S", "1.2"))
+POST_TTS_REFRACTORY_S = float(os.environ.get("GIDEON_POST_TTS_REFRACTORY_S", "0.60"))
+HOT_MIC_ONSET_CHUNKS = int(os.environ.get("GIDEON_HOT_MIC_ONSET_CHUNKS", "3"))
+SPEECH_THRESHOLD_FLOOR = float(os.environ.get("GIDEON_SPEECH_THRESHOLD_FLOOR", "0.008"))
+
 
 class AudioListener:
     def __init__(
         self,
         wake_word: str = "hey jarvis",
-        wake_threshold: float = 0.20,
+        wake_threshold: float = DEFAULT_WAKE_THRESHOLD,
         sample_rate: int = 16000,
         chunk_size: int = 1280,  # 80ms chunks for openWakeWord
         on_rms_update: Callable[[float], None] | None = None,
         on_wake_detected: Callable[[], None] | None = None,
         on_barge_in: Callable[[], None] | None = None,
         hot_mic_timeout: float = 45.0,
-        mic_gain: float = 1.8
+        mic_gain: float = 1.8,
+        wake_patience_frames: int = WAKE_PATIENCE_FRAMES,
+        post_tts_refractory_s: float = POST_TTS_REFRACTORY_S,
     ):
         self.wake_word = wake_word
         self.wake_threshold = wake_threshold
@@ -49,12 +60,15 @@ class AudioListener:
         self.on_barge_in = on_barge_in
         self.hot_mic_timeout = hot_mic_timeout
         self.mic_gain = max(1.0, min(4.0, mic_gain))
+        self.wake_patience_frames = max(1, int(wake_patience_frames))
+        self.post_tts_refractory_s = max(0.0, float(post_tts_refractory_s))
 
         self.wakeword_model = None
         self._is_listening: bool = False
         self._is_running: bool = True
         self._stream = None
         self._last_wake_time: float = 0.0
+        self._last_tts_end_time: float = 0.0
         self.is_recording_command: bool = False
 
     def stop(self) -> None:
@@ -130,6 +144,8 @@ class AudioListener:
         ambient_floor = 0.010
         hot_mic_consecutive_chunks = 0
         hot_mic_pending_frames = []
+        wake_consecutive_frames = 0
+        was_speaking = bool(is_speaking)
         pre_roll_buffer = deque(maxlen=5)
         silence_chunk_count = 0
 
@@ -142,12 +158,9 @@ class AudioListener:
                 blocksize=self.chunk_size
             )
         except Exception as e:
-            logger.warning(f"Audio device open failed ({e}); resetting PortAudio...")
-            try:
-                sd._terminate()
-                sd._initialize()
-            except Exception:
-                pass
+            # Global PortAudio teardown invalidates other live streams,
+            # including hold-to-talk's CFFI callback. Let the caller retry.
+            logger.warning(f"Audio device open failed ({e}); retrying without global teardown")
             raise
 
         with stream_ctx as stream:
@@ -161,6 +174,13 @@ class AudioListener:
                 # Dynamically update speaking and hot-mic states from host daemon
                 if is_speaking_checker:
                     is_speaking = is_speaking_checker()
+                if was_speaking and not is_speaking:
+                    self._last_tts_end_time = time.time()
+                    wake_consecutive_frames = 0
+                    if self.wakeword_model is not None:
+                        self.wakeword_model.reset()
+                was_speaking = bool(is_speaking)
+
                 if enabled_checker and not enabled_checker():
                     logger.debug("Wake listener disabled mid-stream; closing audio capture.")
                     self.is_recording_command = False
@@ -196,16 +216,24 @@ class AudioListener:
                     self.on_rms_update(ui_rms)
 
                 # Dynamically scaled thresholds based on filtered voice band
-                speech_threshold = max(0.006, ambient_floor * 1.8)
+                speech_threshold = max(SPEECH_THRESHOLD_FLOOR, ambient_floor * 1.8)
                 silence_threshold = max(0.003, ambient_floor * 1.3)
+
+                in_post_tts_cooldown = (
+                    not is_speaking
+                    and self._last_tts_end_time > 0.0
+                    and (time.time() - self._last_tts_end_time) < self.post_tts_refractory_s
+                )
 
                 # 1. Hot Mic Ingestion: Wait for user to speak follow-up (reject isolated typing transients)
                 if is_hot_mic and not speech_started:
                     # Acoustic Echo Immunity: Never ingest audio while TTS is actively vocalizing through speakers
-                    if is_speaking:
+                    # or during the brief post-TTS acoustic tail refractory window.
+                    if is_speaking or in_post_tts_cooldown:
                         hot_mic_consecutive_chunks = 0
                         hot_mic_pending_frames.clear()
-                        loop_start = time.time()  # Give user full timeout after speech ends
+                        if is_speaking:
+                            loop_start = time.time()  # Give user full timeout after speech ends
                         continue
 
                     if time.time() - loop_start > hot_mic_timeout_s:
@@ -214,7 +242,7 @@ class AudioListener:
                     if voice_rms >= speech_threshold:
                         hot_mic_consecutive_chunks += 1
                         hot_mic_pending_frames.append(audio_chunk)
-                        if hot_mic_consecutive_chunks >= 2:
+                        if hot_mic_consecutive_chunks >= HOT_MIC_ONSET_CHUNKS:
                             logger.info("Speech detected during hot mic window. Locking audio capture open.")
                             speech_started = True
                             speech_start_time = time.time()
@@ -231,42 +259,57 @@ class AudioListener:
 
                 # 2. Wake Word Inspection (when not hot-mic and not recording)
                 if not is_hot_mic and not is_recording and self.wakeword_model is not None:
-                    # Debounce refractory period (minimum 1.2s between wake word firings)
-                    if time.time() - self._last_wake_time > 1.2:
+                    if in_post_tts_cooldown:
+                        wake_consecutive_frames = 0
+                    elif time.time() - self._last_wake_time > WAKE_REFRACTORY_S:
+                        # Debounce refractory period (minimum WAKE_REFRACTORY_S between wake word firings)
                         predictions = self.wakeword_model.predict(audio_chunk)
+                        matched_model = None
+                        matched_score = 0.0
                         for model_name, score in predictions.items():
-                            if "jarvis" in model_name.lower():
-                                if score >= self.wake_threshold:
-                                    logger.info(f"Wake word detected ({model_name}: {score:.2f})")
-                                    self._last_wake_time = time.time()
-                                    self.wakeword_model.reset()
+                            if "jarvis" in model_name.lower() and score >= self.wake_threshold:
+                                matched_model = model_name
+                                matched_score = float(score)
+                                break
 
-                                    if is_speaking:
-                                        if self.on_barge_in:
-                                            self.on_barge_in()
-                                        return None
+                        if matched_model is not None:
+                            wake_consecutive_frames += 1
+                            if wake_consecutive_frames >= self.wake_patience_frames:
+                                logger.info(
+                                    f"Wake word detected ({matched_model}: {matched_score:.2f}, "
+                                    f"frames={wake_consecutive_frames}/{self.wake_patience_frames})"
+                                )
+                                wake_consecutive_frames = 0
+                                self._last_wake_time = time.time()
+                                self.wakeword_model.reset()
 
-                                    if self.on_wake_detected:
-                                        self.on_wake_detected()
+                                if is_speaking:
+                                    if self.on_barge_in:
+                                        self.on_barge_in()
+                                    return None
 
-                                    is_recording = True
-                                    self.is_recording_command = True
-                                    recording_start = time.time()
-                                    last_speech_time = recording_start
-                                    audio_frames.clear()
-                                    speech_started = False
-                                    silence_start = None
+                                if self.on_wake_detected:
+                                    self.on_wake_detected()
 
-                                    # Include last 3 pre-roll chunks (~240ms) so seamless one-shot command onset is never clipped
-                                    if len(pre_roll_buffer) >= 3:
-                                        audio_frames.extend(list(pre_roll_buffer)[-3:])
+                                is_recording = True
+                                self.is_recording_command = True
+                                recording_start = time.time()
+                                last_speech_time = recording_start
+                                audio_frames.clear()
+                                speech_started = False
+                                silence_start = None
 
-                                    # If user already stopped speaking after wake word, play chime; otherwise stay silent to avoid stepping on contiguous speech
-                                    if voice_rms < speech_threshold:
-                                        play_sound("activate.wav")
-                                    else:
-                                        logger.info("Contiguous speech following wake word (one-shot mode).")
-                                    break
+                                # Include last 3 pre-roll chunks (~240ms) so seamless one-shot command onset is never clipped
+                                if len(pre_roll_buffer) >= 3:
+                                    audio_frames.extend(list(pre_roll_buffer)[-3:])
+
+                                # If user already stopped speaking after wake word, play chime; otherwise stay silent to avoid stepping on contiguous speech
+                                if voice_rms < speech_threshold:
+                                    play_sound("activate.wav")
+                                else:
+                                    logger.info("Contiguous speech following wake word (one-shot mode).")
+                        else:
+                            wake_consecutive_frames = 0
 
                 # 3. Speech Accumulation & Adaptive Trailing Silence Detection
                 if is_recording:

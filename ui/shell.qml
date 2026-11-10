@@ -3,8 +3,8 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 
-// GIDEON Quickshell Orb & Subtitles Overlay
-// Native Wayland layer-shell 3D GPU plasma orb + frosted smoked glass telemetry
+// GIDEON Quickshell Orb Overlay
+// Native Wayland layer-shell 3D GPU plasma orb + minimal cognitive telemetry
 // Theme: Boreal Pine, Bioluminescent Canopy & GIDEON cognitive telemetry
 
 ShellRoot {
@@ -26,56 +26,116 @@ ShellRoot {
     property real   rmsTarget: 0.0
     property real   lastRmsMs: 0
     property double lastMsgMs: 0 // proof-of-life: updated on every socket line
-    property string transcriptSpeaker: ""
-    property string transcriptText: ""
-    readonly property bool transcriptVisible: transcriptText.length > 0
 
-    // Dynamic cognitive verbs for thinking/conversing
+    // Dynamic cognitive verbs for thinking/conversing (Claude-Code-style vocabulary)
     readonly property var gerundList: [
-        "Discombobulating",
-        "Perambulating",
-        "Cogitating",
-        "Ruminating",
-        "Pondering",
-        "Synthesizing",
-        "Deliberating",
-        "Contemplating",
-        "Osmosing",
-        "Transmogrifying",
-        "Pontificating",
-        "Deciphering",
-        "Unraveling",
-        "Mulling",
-        "Speculating",
-        "Calibrating",
-        "Navigating",
+        "Alchemizing",
+        "Architecting",
+        "Bamboozling",
+        "Befuddling",
+        "Brainstorming",
         "Brewing",
+        "Calibrating",
+        "Canvassing",
+        "Cataloging",
+        "Channeling",
+        "Choreographing",
+        "Coalescing",
+        "Cogitating",
+        "Cognitating",
+        "Combobulating",
+        "Communing",
+        "Concocting",
         "Conjuring",
-        "Extrapolating"
+        "Contemplating",
+        "Crystallizing",
+        "Curating",
+        "Deciphering",
+        "Defragmenting",
+        "Deliberating",
+        "Demystifying",
+        "Discombobulating",
+        "Disentangling",
+        "Distilling",
+        "Divining",
+        "Elucidating",
+        "Envisioning",
+        "Extrapolating",
+        "Ferreting",
+        "Fiddling",
+        "Finagling",
+        "Forging",
+        "Formulating",
+        "Frolicking",
+        "Germinating",
+        "Gesticulating",
+        "Harmonizing",
+        "Hatching",
+        "Herding",
+        "Ideating",
+        "Illuminating",
+        "Improvising",
+        "Incubating",
+        "Interweaving",
+        "Inventing",
+        "Investigating",
+        "Kneading",
+        "Levitating",
+        "Manifesting",
+        "Marinating",
+        "Meandering",
+        "Metamorphosing",
+        "Moseying",
+        "Mulling",
+        "Munging",
+        "Musing",
+        "Navigating",
+        "Noodling",
+        "Orchestrating",
+        "Origamizing",
+        "Osmosing",
+        "Perambulating",
+        "Percolating",
+        "Philosophising",
+        "Pondering",
+        "Pontificating",
+        "Puzzling",
+        "Recombining",
+        "Refactoring",
+        "Reticulating",
+        "Ruminating",
+        "Rummaging",
+        "Schlepping",
+        "Simmering",
+        "Sleuthing",
+        "Speculating",
+        "Spelunking",
+        "Synthesizing",
+        "Tinkering",
+        "Transmogrifying",
+        "Transmuting",
+        "Unearthing",
+        "Unfurling",
+        "Unraveling",
+        "Untangling",
+        "Whittling",
+        "Wrangling"
     ]
     property int gerundIndex: 0
     readonly property string currentGerund: gerundList[gerundIndex]
 
-    // Rotate whimsical gerunds every 1.8s during thinking/conversing
+    // Rotate whimsical gerunds every 1.8s during thinking/conversing (non-repeating random)
     Timer {
         id: gerundTimer
         interval: 1800
         running: root.orbState === "thinking" || root.orbState === "conversing"
         repeat: true
         onTriggered: {
-            root.gerundIndex = (root.gerundIndex + 1) % root.gerundList.length
-        }
-    }
-
-    // Keep the last subtitle visible briefly after speech, then return to a
-    // quiet desktop presence. This is display-only; no transcript is persisted.
-    Timer {
-        id: transcriptTimer
-        interval: 6500
-        repeat: false
-        onTriggered: {
-            root.transcriptSpeaker = ""
-            root.transcriptText = ""
+            const len = root.gerundList.length
+            if (len > 1) {
+                const offset = 1 + Math.floor(Math.random() * (len - 1))
+                root.gerundIndex = (root.gerundIndex + offset) % len
+            }
         }
     }
 
@@ -102,21 +162,21 @@ ShellRoot {
         thinking: {
             diam: 92, morph: 0.82, spin: 3.40, hueSpeed: 0.38, speak: 0, hot: 0,
             c1: "#047857", c2: "#6ee7b7", c3: "#0f2922",
-            label: "🧠 Thinking…", ringMode: "orbit", accent: "#a7f3d0",
+            label: "Thinking…", ringMode: "orbit", accent: "#a7f3d0",
             badgeBg: Qt.rgba(0.03, 0.14, 0.10, 0.90),
             badgeBorder: Qt.rgba(0.4, 0.9, 0.7, 0.40)
         },
         conversing: {
             diam: 94, morph: 0.85, spin: 3.30, hueSpeed: 0.40, speak: 0, hot: 0,
             c1: "#4f46e5", c2: "#9333ea", c3: "#1e1b4b",
-            label: "🧠 LLM Conversing", ringMode: "orbit", accent: "#c084fc",
+            label: "Conversing…", ringMode: "orbit", accent: "#c084fc",
             badgeBg: Qt.rgba(0.12, 0.08, 0.24, 0.92),
             badgeBorder: Qt.rgba(0.7, 0.4, 1.0, 0.45)
         },
         bge_reflex: {
             diam: 98, morph: 0.60, spin: 2.80, hueSpeed: 0.28, speak: 0, hot: 0,
             c1: "#059669", c2: "#06b6d4", c3: "#022c22",
-            label: "⚡ BGE Reflex", ringMode: "scan", accent: "#34d399",
+            label: "BGE Reflex", ringMode: "scan", accent: "#34d399",
             badgeBg: Qt.rgba(0.02, 0.18, 0.14, 0.94),
             badgeBorder: Qt.rgba(0.2, 0.95, 0.65, 0.55)
         },
@@ -152,27 +212,25 @@ ShellRoot {
     readonly property color effC3: root.whiteThinking ? "#0f172a" : root.activePreset.c3
 
     readonly property string effectiveStatusLabel: {
-        const d = String(stateDetail).trim()
+        let d = String(stateDetail).trim()
+        d = d.replace(/[^\x00-\x7F\u2026]/g, "").trim()
         if (d.length > 0) {
             // Priority 1: BGE reflex badge
-            if (d.indexOf("BGE") !== -1 || d.indexOf("⚡") !== -1) {
+            if (d.indexOf("BGE") !== -1) {
                 return d
             }
             // Priority 2: LLM formulating or synthesizing speech
-            if (d.indexOf("LLM: Formulating") !== -1 || d.indexOf("LLM: Synthesizing") !== -1 || d.indexOf("Synthesizing") !== -1) {
-                return d
+            if (d.indexOf("Formulating") !== -1 || d.indexOf("Synthesizing") !== -1) {
+                return d.replace(/^LLM:\s*/i, "")
             }
             // Priority 3: LLM thinking with rotating Claude gerund
             if (d.indexOf("LLM") !== -1 && (d.indexOf("Thinking") !== -1 || d.indexOf("Routing") !== -1)) {
-                return "🧠 LLM: " + currentGerund + "…"
+                return currentGerund + "…"
             }
-            return d
+            return d.replace(/^LLM:\s*/i, "")
         }
-        if (orbState === "conversing") {
-            return "🧠 LLM: " + currentGerund + "…"
-        }
-        if (orbState === "thinking") {
-            return "🧠 " + currentGerund + "…"
+        if (orbState === "conversing" || orbState === "thinking") {
+            return currentGerund + "…"
         }
         if (orbState === "speaking") {
             return "Speaking…"
@@ -205,14 +263,6 @@ ShellRoot {
         }
     }
 
-    function setTranscript(speaker, text) {
-        const clean = String(text || "").trim()
-        if (!clean) return
-        root.transcriptSpeaker = String(speaker || "gideon").toLowerCase()
-        root.transcriptText = clean.slice(-320)
-        transcriptTimer.restart()
-    }
-
     function handleLine(line) {
         root.lastMsgMs = Date.now()
         let msg
@@ -223,14 +273,6 @@ ShellRoot {
             const v = Number(msg.val)
             rmsTarget = isNaN(v) ? 0.0 : Math.max(0.0, Math.min(1.0, v))
             lastRmsMs = Date.now()
-        } else if (msg.event === "transcript") {
-            if (!String(msg.text || "").trim()) {
-                transcriptTimer.stop()
-                root.transcriptSpeaker = ""
-                root.transcriptText = ""
-            } else {
-                setTranscript(msg.speaker, msg.text)
-            }
         }
     }
 
@@ -572,169 +614,39 @@ ShellRoot {
                     Behavior on opacity { NumberAnimation { duration: 400 } }
                 }
 
-                // Smoked glass status badge at bottom of orb
-                Rectangle {
+                // Bare status label, positioned from the visible orb rather than its canvas.
+                Item {
                     id: stateBadge
                     readonly property bool showBadge: !root.isHiding && root.effectiveStatusLabel.length > 0
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 4
+                    y: Math.round((parent.height + orb.diam) * 0.5 + 16)
                     anchors.horizontalCenter: parent.horizontalCenter
-                    height: 24
-                    width: Math.max(80, badgeRow.implicitWidth + 20)
-                    radius: 12
-                    color: root.activePreset.badgeBg ? root.activePreset.badgeBg : Qt.rgba(0.04, 0.07, 0.05, 0.88)
-                    border.width: 1
-                    border.color: root.activePreset.badgeBorder ? root.activePreset.badgeBorder : Qt.rgba(0.2, 0.8, 0.5, 0.30)
+                    height: statusLabelText.implicitHeight
+                    width: Math.round(parent.width * 0.8)
 
                     opacity: showBadge ? 1.0 : 0.0
-                    scale: showBadge ? 1.0 : 0.88
                     Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                    Behavior on scale   { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
-                    Behavior on width   { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                    Behavior on color   { ColorAnimation { duration: 300 } }
-                    Behavior on border.color { ColorAnimation { duration: 300 } }
 
-                    Row {
-                        id: badgeRow
-                        anchors.centerIn: parent
-                        spacing: 7
-
-                        // Mode indicator: mini audio visualizer bars when speaking, pulsing dot otherwise
-                        Item {
-                            width: root.orbState === "speaking" ? 14 : 7
-                            height: 10
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            // Single pulsing dot for non-speaking states
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 7
-                                height: 7
-                                radius: 3.5
-                                color: root.activePreset.accent
-                                visible: root.orbState !== "speaking"
-
-                                SequentialAnimation on opacity {
-                                    running: stateBadge.showBadge && root.orbState !== "speaking"
-                                    loops: Animation.Infinite
-                                    NumberAnimation { from: 1.0; to: 0.35; duration: 700; easing.type: Easing.InOutSine }
-                                    NumberAnimation { from: 0.35; to: 1.0; duration: 700; easing.type: Easing.InOutSine }
-                                }
-                            }
-
-                            // 3 mini dancing EQ bars when speaking
-                            Row {
-                                anchors.fill: parent
-                                spacing: 2
-                                visible: root.orbState === "speaking"
-
-                                Rectangle {
-                                    width: 3
-                                    height: Math.max(3, Math.min(10, 4 + orb.rms * 6 + Math.sin(orb.time * 9.0) * 3))
-                                    radius: 1.5
-                                    color: "#38bdf8"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Rectangle {
-                                    width: 3
-                                    height: Math.max(4, Math.min(10, 5 + orb.rms * 5 + Math.cos(orb.time * 11.0) * 4))
-                                    radius: 1.5
-                                    color: "#06b6d4"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Rectangle {
-                                    width: 3
-                                    height: Math.max(3, Math.min(10, 3 + orb.rms * 7 + Math.sin(orb.time * 8.0) * 3))
-                                    radius: 1.5
-                                    color: "#34d399"
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-                        }
-
-                        Text {
-                            id: statusLabelText
-                            text: root.effectiveStatusLabel
-                            color: "#F8FAFC"
-                            font.family: "Inter, Roboto, sans-serif"
-                            font.pixelSize: 11
-                            font.weight: Font.DemiBold
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-                }
-
-            }
-
-                // Ephemeral transcript card: the orb remains the primary
-                // presence, while the latest speech is still readable without
-                // opening the browser HUD.
-                Rectangle {
-                    id: transcriptCard
-                    anchors.top: orb.bottom
-                    anchors.topMargin: -2
-                    anchors.right: parent.right
-                    width: 244
-                    height: Math.min(92, 36 + transcriptBody.implicitHeight)
-                    radius: 10
-                    color: Qt.rgba(0.015, 0.025, 0.03, 0.78)
-                    border.width: 1
-                    border.color: root.transcriptSpeaker === "user"
-                                  ? Qt.rgba(0.1, 0.85, 1.0, 0.30)
-                                  : Qt.rgba(0.35, 0.95, 0.65, 0.26)
-                    visible: root.transcriptVisible
-                    opacity: visible ? 1.0 : 0.0
-                    scale: visible ? 1.0 : 0.96
-                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                    Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                    Behavior on color { ColorAnimation { duration: 260 } }
-                    Behavior on border.color { ColorAnimation { duration: 260 } }
-
-                    Row {
+                    Text {
+                        id: statusLabelText
                         anchors.fill: parent
-                        anchors.leftMargin: 16
-                        anchors.rightMargin: 12
-                        anchors.topMargin: 9
-                        anchors.bottomMargin: 9
-                        spacing: 10
-
-                        Rectangle {
-                            width: 3
-                            height: parent.height
-                            radius: 1.5
-                            color: root.transcriptSpeaker === "user" ? "#67e8f9" : "#86efac"
-                            opacity: 0.85
-                        }
-
-                        Column {
-                            width: parent.width - 13
-                            spacing: 4
-
-                            Text {
-                                text: root.transcriptSpeaker === "user" ? "YOU" : "GIDEON"
-                                color: root.transcriptSpeaker === "user" ? "#67e8f9" : "#86efac"
-                                font.family: "Inter, Roboto, sans-serif"
-                                font.pixelSize: 8
-                                font.weight: Font.DemiBold
-                                font.letterSpacing: 1.8
-                            }
-
-                            Text {
-                                id: transcriptBody
-                                text: root.transcriptText
-                                width: parent.width
-                                color: "#e2e8f0"
-                                font.family: "Inter, Roboto, sans-serif"
-                                font.pixelSize: 12
-                                lineHeight: 1.1
-                                wrapMode: Text.Wrap
-                                maximumLineCount: 3
-                                elide: Text.ElideRight
-                            }
-                        }
+                        text: root.effectiveStatusLabel
+                        textFormat: Text.PlainText
+                        color: "#C8D2DE"
+                        font.family: "Inter"
+                        font.pixelSize: 14
+                        font.weight: Font.Medium
+                        renderType: Text.QtRendering
+                        antialiasing: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        wrapMode: Text.NoWrap
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
                     }
                 }
 
             }
+
         }
     }
+}

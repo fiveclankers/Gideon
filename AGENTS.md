@@ -29,8 +29,12 @@ When asked to send an Instagram DM:
 
 ## Music Playback Directives
 - Never use generic `playerctl play` or `playerctl` toggles when playing music, as browser tabs (Chrome/Chromium) with open YouTube/video tabs will intercept MPRIS and play unwanted video audio.
-- For music playback, always route directly to the background music daemon via `/tmp/music-mpv.sock` (e.g. using `echo '{ "command": ["loadfile", "ytdl://ytsearch:<query>", "replace"] }' | socat - /tmp/music-mpv.sock`).
-- Always ensure `/tmp/music-mpv.sock` is unmuted and playing properly rather than unpausing ambient browser media.
+- For music playback, always route directly to the background music daemon via `/tmp/music-mpv.sock` (e.g. using `echo '{ "command": ["loadfile", "ytdl://ytsearch:<query>", "replace"] }' | socat - /tmp/music-mpv.sock`) or `~/.local/bin/music`.
+- Always ensure music playback is actively unpaused immediately after loading the queue (`set_property pause false` or `~/.local/bin/music resume`). Never leave music paused after starting.
+
+## gideon-doctor
+- When tuning or fixing GIDEON's prompt, persona, voice rules, or behavioral quirks, invoke and follow the `gideon-doctor` skill at `~/.agents/skills/gideon-doctor/SKILL.md`.
+- Strictly isolate changes to `GIDEON_VOICE_PREAMBLE` in `/home/cat/gideon/gideon.py`. Never touch or modify UI files, shaders, audio capture loops, or daemon infrastructure when addressing prompt requests.
 
 ## Clipboard Directives
 - Always copy directly to the Wayland clipboard (`wl-copy`), ensuring `WAYLAND_DISPLAY` (typically `wayland-1`) is set if in a subshell without inherited environment variables. Do not rely on X11 clipboard tools.
