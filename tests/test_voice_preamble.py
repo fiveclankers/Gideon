@@ -51,6 +51,12 @@ class TestVoicePreamble(unittest.IsolatedAsyncioTestCase):
         self.assertIn("NEVER invoke, load, or search for the `gideon` skill", GIDEON_VOICE_PREAMBLE)
         self.assertIn("NEVER use whisper tags", GIDEON_VOICE_PREAMBLE)
         self.assertIn("PROPORTIONALITY", GIDEON_VOICE_PREAMBLE)
+        self.assertIn("35 to 60", GIDEON_VOICE_PREAMBLE)
+        self.assertIn("gideon-music", GIDEON_VOICE_PREAMBLE)
+        self.assertIn("online", GIDEON_VOICE_PREAMBLE)
+        self.assertNotIn("ytdl://ytsearch:", GIDEON_VOICE_PREAMBLE)
+        self.assertNotIn("ensure_mpv", GIDEON_VOICE_PREAMBLE)
+        self.assertNotIn("socat - /tmp/music-mpv.sock", GIDEON_VOICE_PREAMBLE)
 
 
 if __name__ == "__main__":

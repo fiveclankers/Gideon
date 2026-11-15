@@ -185,11 +185,27 @@ class AudioListener:
                     logger.debug("Wake listener disabled mid-stream; closing audio capture.")
                     self.is_recording_command = False
                     return None
-                if hot_mic_checker and not is_hot_mic:
-                    if hot_mic_checker():
+                if hot_mic_checker:
+                    # Bidirectional sync with the shared window: adopt a live arm
+                    # mid-stream, and DEMOTE back to wake-word watch when the
+                    # window is disarmed mid-iteration (e.g. "bye bye"). Without
+                    # the demotion path, a running loop stays in wake-word-free
+                    # ingest mode for the rest of its snapshot window even after
+                    # disarm_hot_mic() — the mic then "still hears" after the orb
+                    # goes idle. The is_recording guard never truncates an
+                    # utterance the user is already speaking.
+                    armed_now = hot_mic_checker()
+                    if armed_now and not is_hot_mic and not is_recording:
                         is_hot_mic = True
                         loop_start = time.time()
-                        logger.info("Hot mic armed dynamically mid-stream (confirmation gate active).")
+                        hot_mic_timeout_s = self.hot_mic_timeout
+                        logger.info("Hot mic adopted mid-stream (window live; disarm observed).")
+                    elif is_hot_mic and not armed_now and not is_recording:
+                        is_hot_mic = False
+                        speech_started = False
+                        hot_mic_consecutive_chunks = 0
+                        hot_mic_pending_frames.clear()
+                        logger.info("Hot mic disarmed mid-stream; reverting to wake-word watch.")
 
                 # Software mic pre-amp (config mic_gain, default 1.6x): applied in
                 # float domain with hard clip, so quiet/far speech clears the

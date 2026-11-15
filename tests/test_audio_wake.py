@@ -299,5 +299,71 @@ class TestAudioWakeGating(unittest.IsolatedAsyncioTestCase):
         wake_listener.disarm_hot_mic()
 
 
+class TestMidStreamDisarmRegression(unittest.IsolatedAsyncioTestCase):
+    async def test_mid_stream_disarm_stops_hot_mic_ingest(self):
+        """Regression (2026-11-12 bug): after a mid-stream 'bye bye' disarm, the
+        running capture must revert to wake-word watch within one chunk. Loud
+        post-dismissal noise must NOT lock capture open or return a buffer."""
+        loud = (np.ones((1280, 1), dtype=np.int16) * 12000)
+        silent = np.zeros((1280, 1), dtype=np.int16)
+        reads = {"n": 0}
+
+        class _GateStream:
+            chunk_size = 1280
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self, _chunk_size):
+                reads["n"] += 1
+                return (loud if reads["n"] >= 4 else silent), None
+
+        checker_calls = {"n": 0}
+
+        def hot_mic_checker():
+            checker_calls["n"] += 1
+            # Armed for chunks 1-3, then 'bye bye' disarms it mid-iteration.
+            return checker_calls["n"] <= 3
+
+        def enabled_checker():
+            return reads["n"] < 40
+
+        on_wake = MagicMock()
+        on_barge_in = MagicMock()
+        model = _FakeWakeModel()
+        listener = AudioListener(
+            wake_threshold=2.0,
+            on_wake_detected=on_wake,
+            on_barge_in=on_barge_in,
+        )
+        listener.wakeword_model = model
+
+        sounddevice = SimpleNamespace(
+            InputStream=lambda **kwargs: _GateStream(),
+            _terminate=MagicMock(),
+            _initialize=MagicMock(),
+        )
+        with patch.dict(sys.modules, {"sounddevice": sounddevice}):
+            result = await listener.listen_for_command(
+                is_hot_mic=True,
+                is_speaking=False,
+                silence_timeout_s=1.0,
+                max_duration_s=15.0,
+                hot_mic_checker=hot_mic_checker,
+                is_speaking_checker=lambda: False,
+                enabled_checker=enabled_checker,
+            )
+
+        # The pre-fix latch would keep hot-mic ingest alive past the disarm and
+        # return the loud post-dismissal noise as a captured buffer.
+        self.assertIsNone(result)
+        self.assertFalse(listener.is_recording_command)
+        on_wake.assert_not_called()
+        on_barge_in.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

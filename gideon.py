@@ -6,7 +6,7 @@ Features:
 - Unified HTTP Visualizer Server on port 8790 (serves Circuit Board & all faces).
 - In-Browser Hold-to-Talk via Spacebar (/api/talk/start & /api/talk/stop).
 - Headless bidirectional NDJSON Antigravity Engine (`agy`).
-- Faster-Whisper on CUDA with automatic CPU fallback.
+- Parakeet TDT 0.6B v3 INT8 ONNX Speech-to-Text with Silero VAD (Faster-Whisper fallback).
 - Fish Audio Neural Cloud TTS with PipeWire (`pw-play`) playback.
 - Dynamic waveform & state IPC bridge for `ai-visualizer`.
 - 45-second tool execution watchdog check-in.
@@ -31,11 +31,13 @@ import sys
 import threading
 import time
 import urllib.request
+import wave
 import webbrowser
 from collections import deque
+from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Optional, Union
 from reflex_router import _is_dismissal, try_reflex, ensure_hyprland_env
 from selected_context import PreparedPrompt, copy_to_wayland_clipboard, prepare_prompt
 
@@ -52,9 +54,6 @@ logger = logging.getLogger("gideon")
 HERE = Path(__file__).resolve().parent
 VISUALIZER_DIR = HERE / "ai-visualizer"
 SIGNALS_DIR = HERE / "signals"
-SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
-BAREHANDS_STATE_DIR = Path("/home/cat/barehands/state")
-BAREHANDS_STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 # Conversational hot-mic window: how long GIDEON keeps listening for a
 # follow-up without the wake word. Long enough for trailing thoughts; a truly
@@ -103,6 +102,7 @@ _REPEATED_NUMBER_CURRENCY_RE = re.compile(
 
 # Fish Audio Config
 FISH_TTS_URL = "https://api.fish.audio/v1/tts"
+FISH_WS_URL = os.environ.get("GIDEON_FISH_WS_URL", "wss://api.fish.audio/v1/tts/live")
 
 
 def _load_gideon_env() -> None:
@@ -112,20 +112,19 @@ def _load_gideon_env() -> None:
     TTS working for deployments that have not yet migrated to the env file.
     """
     env_file = Path.home() / ".config" / "gideon" / "gideon.env"
-    if not env_file.is_file():
-        return
-    try:
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
-                os.environ[key] = value
-    except Exception as e:
-        logger.debug(f"gideon.env load skipped: {e}")
+    if env_file.is_file():
+        try:
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+        except Exception as e:
+            logger.debug(f"gideon.env load skipped: {e}")
     ensure_hyprland_env()
 
 
@@ -238,19 +237,40 @@ def is_whisper_hallucination(text: str | None) -> bool:
 
 
 def _preload_cuda_libs():
-    """Make bundled CUDA libs resolvable for faster-whisper without torch."""
+    """Make CUDA 12 libs resolvable for faster-whisper without torch.
+
+    ctranslate2's CUDA build dlopens by soname (`libcublas.so.12`,
+    `libcudart.so.12`, `libcudnn*.so.9`), so those exact sonames must be
+    preloaded under RTLD_GLOBAL. CUDA 13 copies are deliberately ignored:
+    their sonames (.so.13) can never satisfy ctranslate2, and loading both
+    majors into one process is asking for trouble.
+
+    Search order: venv site-packages, then an isolated CUDA-12 dir
+    (~/.local/share/gideon/cuda12 by default, override with
+    GIDEON_CUDA12_DIR) so a CUDA-13 stack in the venv is never overwritten.
+    """
     try:
-        candidates = []
-        for sp in site.getsitepackages():
-            candidates.append(f"{sp}/nvidia/cublas/lib/libcublas.so.12")
-            candidates.append(f"{sp}/nvidia/cudnn_cu12/lib/libcudnn.so.9")
-            candidates.append(f"{sp}/nvidia/cuda_runtime/lib/libcudart.so.12")
-        for lib in candidates:
-            if os.path.exists(lib):
+        roots = list(site.getsitepackages())
+        roots.append(os.environ.get(
+            "GIDEON_CUDA12_DIR",
+            os.path.expanduser("~/.local/share/gideon/cuda12"),
+        ))
+        for root_dir in roots:
+            nvidia_dir = os.path.join(root_dir, "nvidia")
+            if not os.path.isdir(nvidia_dir):
+                continue
+            found: list[str] = []
+            for root, _dirs, files in os.walk(nvidia_dir):
+                for name in files:
+                    if name.startswith(("libcublas.so.12", "libcublasLt.so.12", "libcudart.so.12")):
+                        found.append(os.path.join(root, name))
+                    elif name.startswith("libcudnn") and ".so.9" in name:
+                        found.append(os.path.join(root, name))
+            # cuDNN's loader (libcudnn.so.9) dlopens its split sub-libraries,
+            # so register the parts before the loader itself.
+            for lib in sorted(found, key=lambda p: (os.path.basename(p).startswith("libcudnn.so"), p)):
                 try:
                     ctypes.CDLL(lib, mode=ctypes.RTLD_GLOBAL)
-                    if "cublas" in lib:
-                        break
                 except Exception:
                     pass
     except Exception as e:
@@ -307,10 +327,8 @@ async def _copy_reply_after_turn(engine, bus) -> None:
 
 class SignalBus:
     """Manages state, tool telemetry, subtitles, live 64-band waveforms, and Quickshell Unix IPC."""
-    def __init__(self, signals_dir: Path):
+    def __init__(self, signals_dir: Path | None = None):
         self.dir = signals_dir
-        self.state_file = self.dir / ".voice_state"
-        self.waveform_file = self.dir / ".voice_waveform"
         self.current_state = "idle"
         self.current_detail = ""
         self.engine_name = "agy"
@@ -411,22 +429,6 @@ class SignalBus:
     def set_state(self, state: str, detail: str = ""):
         self.current_state = state
         self.current_detail = detail
-        try:
-            tmp = self.dir / ".voice_state.tmp"
-            tmp.write_text(state)
-            tmp.replace(self.state_file)
-        except Exception as e:
-            logger.debug(f"Error writing voice state: {e}")
-
-        # Mirror to barehands state airlock
-        if BAREHANDS_STATE_DIR.is_dir():
-            try:
-                (BAREHANDS_STATE_DIR / "state").write_text(state)
-                mood = "green" if state == "idle" else ("amber" if state in ("thinking", "listening", "toolcall") else "green")
-                (BAREHANDS_STATE_DIR / "mood.json").write_text(json.dumps({"mood": mood, "ts": time.time()}))
-            except Exception:
-                pass
-
         self.broadcast_ui({"event": "state", "val": state, "detail": detail, "engine": self.engine_name})
 
     def broadcast_rms(self, rms: float):
@@ -450,29 +452,83 @@ class SignalBus:
 
     def update_waveform(self, samples: list[float]):
         self.current_samples = samples
-        try:
-            payload = json.dumps({"ts": time.time(), "samples": samples})
-            tmp = self.dir / ".voice_waveform.tmp"
-            tmp.write_text(payload)
-            tmp.replace(self.waveform_file)
-        except Exception:
-            pass
-
-        # Mirror to barehands wave airlock
-        if BAREHANDS_STATE_DIR.is_dir():
-            try:
-                (BAREHANDS_STATE_DIR / "wave.json").write_text(
-                    json.dumps({"ts": time.time(), "samples": samples})
-                )
-            except Exception:
-                pass
 
     def clear_waveform(self):
         self.update_waveform([0.0] * 64)
 
 
+def _extract_audio_frames(
+    audio_bytes: bytes,
+    *,
+    is_raw_pcm: bool = False,
+    sample_rate: int = 44100,
+    hop_s: float = 0.04,
+) -> tuple[list[tuple[list[float], float]], float]:
+    """Compute per-frame 64-band spectral levels and normalized RMS from real WAV/PCM audio."""
+    samples: Optional[np.ndarray] = None
+    sr = sample_rate
+    try:
+        if is_raw_pcm:
+            usable = (len(audio_bytes) // 2) * 2
+            if usable >= 2:
+                samples = np.frombuffer(audio_bytes[:usable], dtype=np.int16).astype(np.float32) / 32768.0
+        elif audio_bytes.startswith(b"RIFF") and len(audio_bytes) >= 44:
+            with wave.open(io.BytesIO(audio_bytes), "rb") as wf:
+                sr = wf.getframerate() or sample_rate
+                nchannels = wf.getnchannels() or 1
+                sampwidth = wf.getsampwidth()
+                raw = wf.readframes(wf.getnframes())
+            if sampwidth == 2 and len(raw) >= 2:
+                arr = np.frombuffer(raw[: (len(raw) // 2) * 2], dtype=np.int16).astype(np.float32) / 32768.0
+                if nchannels > 1:
+                    usable = (len(arr) // nchannels) * nchannels
+                    arr = arr[:usable].reshape(-1, nchannels).mean(axis=1)
+                samples = arr
+    except Exception:
+        samples = None
+
+    if samples is None or len(samples) == 0:
+        return [], hop_s
+
+    chunk_size = max(64, int(sr * hop_s))
+    window = np.hanning(chunk_size).astype(np.float32)
+    freqs = np.fft.rfftfreq(chunk_size, d=1.0 / sr)
+    edges = np.geomspace(80.0, min(7000.0, sr * 0.45), 65)
+    band_masks = [((freqs >= edges[i]) & (freqs < edges[i + 1])) for i in range(64)]
+
+    frames: list[tuple[list[float], float]] = []
+    for start in range(0, len(samples), chunk_size):
+        chunk = samples[start : start + chunk_size]
+        if len(chunk) < chunk_size:
+            chunk = np.pad(chunk, (0, chunk_size - len(chunk)))
+        rms = float(np.sqrt(np.mean(chunk * chunk)))
+        norm_rms = float(np.clip(rms * 3.8, 0.0, 1.0))
+
+        spec = np.abs(np.fft.rfft(chunk * window)) / (chunk_size * 0.25 + 1e-6)
+        bars: list[float] = []
+        for idx, mask in enumerate(band_masks):
+            if np.any(mask):
+                val = float(np.mean(spec[mask]))
+            else:
+                bin_i = min(len(spec) - 1, 1 + idx)
+                val = float(spec[bin_i])
+            bars.append(float(np.clip(np.log1p(val * 18.0) * 0.45 + norm_rms * 0.25, 0.02 if norm_rms > 0.02 else 0.0, 1.0)))
+        frames.append((bars, norm_rms))
+    return frames, hop_s
+
+
+@dataclass
+class _FishStream:
+    """Pipelined Fish Live WebSocket PCM stream for a single queued sentence."""
+    text: str
+    chunk_queue: asyncio.Queue = field(default_factory=asyncio.Queue)
+    task: Optional[asyncio.Task] = None
+    fallback_wav: Optional[bytes] = None
+    error: Optional[str] = None
+
+
 class TTSPlayer:
-    """Fish Audio neural speech player with pipelined pre-fetching & PipeWire streaming."""
+    """Fish Audio neural speech player with live WebSocket PCM streaming and HTTP pooling."""
     def __init__(self, bus: SignalBus):
         self.bus = bus
         self._current_proc: Optional[subprocess.Popen] = None
@@ -480,6 +536,42 @@ class TTSPlayer:
         self._queue: asyncio.Queue = asyncio.Queue()
         self._worker_task: Optional[asyncio.Task] = None
         self._current_synth_tasks: set[asyncio.Task] = set()
+        self._interrupted_procs: set[subprocess.Popen] = set()
+        self._http_client: Optional[Any] = None
+
+    def _active_tool_label(self) -> Optional[str]:
+        """Returns the active running tool label if a tool/subagent is currently executing."""
+        tool = getattr(self.bus, "current_tool", None)
+        if isinstance(tool, dict) and tool.get("status") == "running":
+            return str(tool.get("label") or tool.get("name") or "Executing tool…")
+        return None
+
+    def _get_http_client(self):
+        import httpx
+        if self._http_client is None or getattr(self._http_client, "is_closed", False):
+            self._http_client = httpx.AsyncClient(timeout=20.0)
+        return self._http_client
+
+    async def close(self):
+        await self.interrupt()
+        client = self._http_client
+        self._http_client = None
+        if client is not None:
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+
+    def _ws_enabled(self) -> bool:
+        if not FISH_API_KEY:
+            return False
+        flag = os.environ.get("GIDEON_FISH_WS", "1").strip().lower()
+        if flag in ("0", "false", "no", "off"):
+            return False
+        # Respect test overrides or mocks on self.synthesize
+        if getattr(self.synthesize, "__func__", None) is not TTSPlayer.synthesize:
+            return False
+        return True
 
     def play_sound(self, sound_name: str) -> None:
         """Plays non-blocking UI earcon/sound chime via vendored audio.sounds."""
@@ -498,7 +590,6 @@ class TTSPlayer:
             self._worker_task = asyncio.create_task(self._playback_loop())
 
     async def synthesize(self, text: str) -> Optional[bytes]:
-        import httpx
         if not FISH_API_KEY:
             logger.error("Fish TTS skipped: FISH_API_KEY is empty (set it in ~/.config/gideon/gideon.env).")
             return None
@@ -514,37 +605,150 @@ class TTSPlayer:
             "model": FISH_MODEL,
         }
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                resp = await client.post(FISH_TTS_URL, headers=headers, json=payload)
-                if resp.status_code == 200 and len(resp.content) > 500:
-                    return resp.content
-                logger.error(f"Fish TTS failed ({resp.status_code}): {resp.text[:150]}")
+            client = self._get_http_client()
+            resp = await client.post(FISH_TTS_URL, headers=headers, json=payload)
+            if resp.status_code == 200 and len(resp.content) > 500:
+                return resp.content
+            logger.error(f"Fish TTS failed ({resp.status_code}): {resp.text[:150]}")
         except Exception as e:
             logger.error(f"Fish TTS error: {e}")
         return None
+
+    async def _run_ws_stream(self, stream: _FishStream) -> None:
+        received_audio = False
+        was_cancelled = False
+        odd_byte = b""
+        try:
+            import msgpack
+            import websockets
+
+            headers = {
+                "Authorization": f"Bearer {FISH_API_KEY}",
+                "model": FISH_MODEL,
+            }
+            start_req = {
+                "text": "",
+                "reference_id": FISH_REF_ID,
+                "format": "pcm",
+                "sample_rate": 44100,
+                "latency": "balanced",
+                "temperature": 0.7,
+                "top_p": 0.7,
+                "chunk_length": 100,
+                "normalize": True,
+                "condition_on_previous_chunks": True,
+                "prosody": {
+                    "speed": 1,
+                    "volume": 0,
+                    "normalize_loudness": False,
+                },
+            }
+            async with websockets.connect(
+                FISH_WS_URL,
+                additional_headers=headers,
+                open_timeout=8,
+                close_timeout=2,
+            ) as ws:
+                await ws.send(msgpack.packb({"event": "start", "request": start_req}, use_bin_type=True))
+                await ws.send(msgpack.packb({"event": "text", "text": f"{stream.text} "}, use_bin_type=True))
+                await ws.send(msgpack.packb({"event": "flush"}, use_bin_type=True))
+                await ws.send(msgpack.packb({"event": "stop"}, use_bin_type=True))
+
+                async for raw_msg in ws:
+                    if not isinstance(raw_msg, (bytes, bytearray)):
+                        continue
+                    msg = msgpack.unpackb(raw_msg, raw=False)
+                    if not isinstance(msg, dict):
+                        continue
+                    event = msg.get("event")
+                    if event == "audio":
+                        chunk = msg.get("audio")
+                        if not isinstance(chunk, (bytes, bytearray)) or not chunk:
+                            continue
+                        combined = odd_byte + bytes(chunk)
+                        if len(combined) & 1:
+                            odd_byte = combined[-1:]
+                            combined = combined[:-1]
+                        else:
+                            odd_byte = b""
+                        if combined:
+                            received_audio = True
+                            await stream.chunk_queue.put(combined)
+                    elif event == "finish":
+                        break
+                    elif event == "error":
+                        stream.error = str(msg.get("message") or msg.get("error") or msg)
+                        logger.warning(f"Fish WS error: {stream.error}")
+                        break
+        except asyncio.CancelledError:
+            was_cancelled = True
+            raise
+        except Exception as e:
+            stream.error = str(e)
+            logger.warning(f"Fish WS stream failed ({e}); falling back to HTTP.")
+        finally:
+            if not was_cancelled and not received_audio and stream.task is not None and not stream.task.cancelled():
+                try:
+                    stream.fallback_wav = await self.synthesize(stream.text)
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.error(f"Fish HTTP fallback error: {e}")
+            stream.chunk_queue.put_nowait(None)
 
     def queue_sentence(self, text: str):
         """Immediately starts background synthesis task and enqueues it for pipelined playback."""
         text = text.strip()
         if not text:
             return
-        
+
+        if self._ws_enabled():
+            stream = _FishStream(text=text)
+            synth_task = asyncio.create_task(self._run_ws_stream(stream))
+            stream.task = synth_task
+            self._current_synth_tasks.add(synth_task)
+            synth_task.add_done_callback(lambda t: self._current_synth_tasks.discard(t))
+            self._queue.put_nowait((text, stream))
+            return
+
         synth_task = asyncio.create_task(self.synthesize(text))
         self._current_synth_tasks.add(synth_task)
         synth_task.add_done_callback(lambda t: self._current_synth_tasks.discard(t))
         self._queue.put_nowait((text, synth_task))
 
+    def _finish_playback_state(self) -> None:
+        self.bus.clear_waveform()
+        self.bus.broadcast_rms(0.0)
+        active_label = self._active_tool_label()
+        wake = getattr(self.bus, "__dict__", {}).get("wake_listener")
+        engine = getattr(self.bus, "__dict__", {}).get("engine")
+        if active_label is not None:
+            self.bus.set_state("toolcall", detail=active_label)
+        elif not self._queue.empty() or len(self._current_synth_tasks) > 0:
+            self.bus.set_state("speaking", "Synthesizing next…")
+        elif getattr(engine, "is_turn_active", False) is True:
+            self.bus.set_state("conversing", "LLM: Thinking…")
+        elif getattr(wake, "_hot_mic_armed", False) is True and self.bus.current_state in ("speaking", "toolcall"):
+            self.bus.set_state("hotmic")
+        elif self.bus.current_state in ("speaking", "toolcall"):
+            self.bus.set_state("idle")
+
     async def _playback_loop(self):
         while True:
             try:
-                text, synth_task = await self._queue.get()
+                text, item = await self._queue.get()
             except asyncio.CancelledError:
                 break
-            
+
             try:
-                wav = await synth_task
-                if wav:
-                    await self.play_wav(wav, text=text)
+                if isinstance(item, _FishStream):
+                    await self.play_pcm_stream(item)
+                else:
+                    wav = await item
+                    if wav:
+                        await self.play_wav(wav, text=text)
+                    else:
+                        self._finish_playback_state()
             except asyncio.CancelledError:
                 pass
             except Exception as e:
@@ -556,8 +760,12 @@ class TTSPlayer:
         """Kills active audio playback immediately and cancels queued speech."""
         while not self._queue.empty():
             try:
-                _, task = self._queue.get_nowait()
-                task.cancel()
+                _, item = self._queue.get_nowait()
+                task = item.task if isinstance(item, _FishStream) else item
+                if task is not None:
+                    task.cancel()
+                if isinstance(item, _FishStream):
+                    item.chunk_queue.put_nowait(None)
                 self._queue.task_done()
             except Exception:
                 pass
@@ -567,6 +775,7 @@ class TTSPlayer:
         self._current_synth_tasks.clear()
 
         if self._current_proc:
+            self._interrupted_procs.add(self._current_proc)
             try:
                 self._current_proc.terminate()
             except Exception:
@@ -583,12 +792,129 @@ class TTSPlayer:
         """Waits until all queued speech has completed playing."""
         await self._queue.join()
 
+    async def play_pcm_stream(self, stream: _FishStream):
+        first_chunk = await stream.chunk_queue.get()
+        if first_chunk is None:
+            if stream.fallback_wav:
+                await self.play_wav(stream.fallback_wav, text=stream.text)
+            else:
+                self._finish_playback_state()
+            return
+
+        if self._active_tool_label() is None:
+            self.bus.set_state("speaking")
+        self._is_speaking = True
+        if stream.text:
+            self.bus.broadcast_transcript("gideon", stream.text)
+
+        proc = subprocess.Popen(
+            [
+                "pw-play",
+                "--raw",
+                "--media-role", "Communication",
+                "-P", "application.name=GIDEON",
+                "-P", 'media.name="Gideon Speech"',
+                "--rate", "44100",
+                "--channels", "1",
+                "--format", "s16",
+                "-",
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        self._current_proc = proc
+
+        hop_s = 0.04
+        frame_bytes = 3528  # 40ms @ 44.1 kHz 16-bit mono
+        frames: list[tuple[list[float], float]] = []
+        pcm_accum = bytearray()
+        eof_reached = False
+
+        def _append_frames(chunk: bytes, *, flush_all: bool = False) -> None:
+            pcm_accum.extend(chunk)
+            usable = len(pcm_accum) if flush_all else (len(pcm_accum) // frame_bytes) * frame_bytes
+            if usable >= 2:
+                extracted, _ = _extract_audio_frames(
+                    bytes(pcm_accum[:usable]),
+                    is_raw_pcm=True,
+                    sample_rate=44100,
+                    hop_s=hop_s,
+                )
+                frames.extend(extracted)
+                del pcm_accum[:usable]
+
+        def _write_stdin(data: bytes) -> None:
+            if proc.stdin is None:
+                return
+            proc.stdin.write(data)
+            proc.stdin.flush()
+
+        def _close_stdin_and_wait() -> bytes:
+            if proc.stdin is not None:
+                try:
+                    proc.stdin.close()
+                except Exception:
+                    pass
+            stderr_bytes = b""
+            if proc.stderr is not None:
+                try:
+                    stderr_bytes = proc.stderr.read()
+                except Exception:
+                    pass
+            proc.wait()
+            return stderr_bytes
+
+        async def _animate():
+            t0 = time.monotonic()
+            while self._is_speaking and proc.poll() is None:
+                if frames:
+                    idx = min(int((time.monotonic() - t0) / hop_s), len(frames) - 1)
+                    bars, norm_rms = frames[idx]
+                    self.bus.update_waveform(bars)
+                    self.bus.broadcast_rms(norm_rms)
+                elif eof_reached:
+                    break
+                await asyncio.sleep(hop_s)
+            self.bus.clear_waveform()
+            self.bus.broadcast_rms(0.0)
+
+        anim_task = asyncio.create_task(_animate())
+        try:
+            _append_frames(first_chunk)
+            await asyncio.to_thread(_write_stdin, first_chunk)
+            while self._is_speaking:
+                chunk = await stream.chunk_queue.get()
+                if chunk is None:
+                    eof_reached = True
+                    break
+                _append_frames(chunk)
+                await asyncio.to_thread(_write_stdin, chunk)
+            _append_frames(b"", flush_all=True)
+            stderr = await asyncio.to_thread(_close_stdin_and_wait)
+            if proc.returncode != 0 and proc not in self._interrupted_procs:
+                logger.error(f"pw-play failed with code {proc.returncode}: {stderr.decode(errors='ignore') if stderr else ''}")
+        except Exception as e:
+            logger.error(f"pw-play stream error: {e}")
+        finally:
+            eof_reached = True
+            self._interrupted_procs.discard(proc)
+            self._is_speaking = False
+            self._current_proc = None
+            anim_task.cancel()
+            try:
+                await anim_task
+            except asyncio.CancelledError:
+                pass
+            self._finish_playback_state()
+
     async def play_wav(self, wav_bytes: bytes, text: str = ""):
-        self.bus.set_state("speaking")
+        if self._active_tool_label() is None:
+            self.bus.set_state("speaking")
         self._is_speaking = True
         if text:
             self.bus.broadcast_transcript("gideon", text)
-        
+
         proc = subprocess.Popen(
             ["pw-play", "--media-role", "Communication", "-P", "application.name=GIDEON", "-P", 'media.name="Gideon Speech"', "-"],
             stdin=subprocess.PIPE,
@@ -597,30 +923,30 @@ class TTSPlayer:
         )
         self._current_proc = proc
 
-        # Animate visualizer waveform and orb RMS while playing
+        frames, hop_s = _extract_audio_frames(wav_bytes, is_raw_pcm=False)
+
+        # Animate visualizer waveform and orb RMS synchronized to real audio frames
         async def _animate():
-            t0 = time.time()
+            t0 = time.monotonic()
             while self._is_speaking and proc.poll() is None:
-                t = time.time() - t0
-                bars = [
-                    float(np.clip(0.3 + 0.6 * np.sin(t * 8 + i * 0.3) * np.cos(t * 3), 0.05, 1.0))
-                    for i in range(64)
-                ]
-                self.bus.update_waveform(bars)
-                norm_rms = float(np.mean(bars) * (0.6 + 0.4 * np.sin(t * 7)))
-                self.bus.broadcast_rms(norm_rms)
-                await asyncio.sleep(0.04)
+                if frames:
+                    idx = min(int((time.monotonic() - t0) / hop_s), len(frames) - 1)
+                    bars, norm_rms = frames[idx]
+                    self.bus.update_waveform(bars)
+                    self.bus.broadcast_rms(norm_rms)
+                await asyncio.sleep(hop_s)
             self.bus.clear_waveform()
             self.bus.broadcast_rms(0.0)
 
         anim_task = asyncio.create_task(_animate())
         try:
             _, stderr = await asyncio.to_thread(proc.communicate, wav_bytes)
-            if proc.returncode != 0:
+            if proc.returncode != 0 and proc not in self._interrupted_procs:
                 logger.error(f"pw-play failed with code {proc.returncode}: {stderr.decode(errors='ignore') if stderr else ''}")
         except Exception as e:
             logger.error(f"pw-play error: {e}")
         finally:
+            self._interrupted_procs.discard(proc)
             self._is_speaking = False
             self._current_proc = None
             anim_task.cancel()
@@ -628,10 +954,7 @@ class TTSPlayer:
                 await anim_task
             except asyncio.CancelledError:
                 pass
-            self.bus.clear_waveform()
-            self.bus.broadcast_rms(0.0)
-            if not self._queue.empty() or len(self._current_synth_tasks) > 0:
-                self.bus.set_state("speaking", "Synthesizing next…")
+            self._finish_playback_state()
 
 
 def clean_text_for_tts(raw: str) -> Optional[str]:
@@ -689,19 +1012,27 @@ GIDEON_VOICE_PREAMBLE = (
     "1. PURE SPOKEN PROSE ONLY: Never output markdown headers (###), bullet points (* or -), "
     "numbered lists (1. 2.), code fences, asterisks, or pointer arrows. Every response must be spoken sentences.\n"
     "2. NO CODE RECITATIONS: Never read out code blocks, syntax diffs, or terminal logs. "
-    "When asked to write, refactor, inspect, or debug code, immediately dispatch a subagent (`invoke_subagent`), "
-    "give a quick spoken acknowledgment, and stay available to converse.\n"
+    "Summarize code findings or edits concisely in plain spoken sentences.\n"
     "3. CONVERSATIONAL WEAVING: For multi-factor explanations, connect points conversationally "
     '("First off...", "Plus...", "And honestly...") rather than listing items.\n'
     "4. PROPORTIONALITY: If the user asks a simple or factual question (e.g. \"what's 9 times 9?\"), "
-    "answer directly and concisely without unsolicited jokes, banter, or filler.\n"
+    "answer directly and concisely without unsolicited jokes, banter, or filler. "
+    "For open or explanatory first responses, stay concise at roughly 35 to 60 spoken words "
+    "giving the core answer, then end with a brief natural offer to go deeper if they want more.\n"
     "5. NO SELF-INSPECTION: NEVER invoke, load, or search for the `gideon` skill, `gideon.py`, "
     "or your own daemon files unless the user explicitly asks you to inspect or modify Gideon itself.\n"
-    "6. MUSIC & MEDIA PLAYBACK: When asked to play music or tracks, always ensure playback is actively playing and unpaused. "
-    "Never leave music paused after starting or loading the queue.\n"
-    "7. SUBAGENT TURNOVER & OPEN-MIC PRESERVATION: Whenever launching a subagent (`invoke_subagent`), immediately yield the turn "
-    "with a brief spoken acknowledgment in the same step. Never execute additional chained tools or hold open the model turn, "
-    "so that the speech synthesis can finish and the voice loop immediately returns to the open-mic listening state.\n\n"
+    "6. MUSIC & MEDIA PLAYBACK DIRECTIVES: Execute in one command via `~/.local/bin/music` "
+    "(never touch raw `mpv`, IPC sockets, `playerctl`, or `--help`; "
+    "follow your active `music` rule and `gideon-music` skill). "
+    "For local moods/genres/artists/playlists use `--mood|--genre|--artist|--playlist`. "
+    "For specific songs use `~/.local/bin/music play --search \"<song or artist>\" --online --json`. "
+    "For non-local, unique, or vague vibes use `~/.local/bin/music online \"<artist - track>\" --json` "
+    "(translate vibes yourself into 1 to 3 real track args, or `--count 3`). "
+    "The CLI ensures `mpv`, unpauses, and verifies real playback before returning `0`.\n"
+    "7. HONEST SUBAGENT & TOOL BLOCKING: In this Antigravity voice session, calling `invoke_subagent` "
+    "or running long tools blocks the session until the task finishes; you cannot keep chatting concurrently "
+    "while a subagent runs. Only spawn a subagent when heavy isolated research or multi-file work truly needs one, "
+    "and tell the user beforehand if it will take time. Handle direct questions and quick edits yourself so the mic returns quickly.\n\n"
     "8. OBSERVED-TAB-ONLY BROWSING: Use only observed tab IDs returned by browser tools in this session. "
     "Open or navigate to the exact URL supplied or verified; NEVER invent tab handles or guess IDs. "
     "After navigation, verify the loaded URL and page content before claiming success. If a tab is missing or stale, "
@@ -718,6 +1049,139 @@ GIDEON_VOICE_PREAMBLE = (
     "Most turns need none."
 )
 
+CONVERSATION_DIRECTIVE = GIDEON_VOICE_PREAMBLE
+
+BROWSER_DIRECTIVE = (
+    "[Directive: High-Speed Browser Operations]\n"
+    "You are operating the user's browser on Hyprland Linux. Execution must be immediate, direct, and zero-hesitation.\n\n"
+    "=== BROWSER EXECUTION RULES ===\n"
+    "1. ZERO DEAD AIR: Speak exactly one quick spoken acknowledgment immediately (e.g. 'Opening that tab now', 'Checking your Instagram inbox now') before running tools.\n"
+    "2. HYPRLAND VISIBILITY: Never leave the browser hidden in special workspace `special:agent`. If a browser or visual task requires the user's attention, bring it into view via `hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"agent\")'` or ensure it is on the active visible workspace.\n"
+    "3. INSTAGRAM & SOCIAL AUTOMATION: When asked to message someone (e.g. Nihal / Sinha / Sinh), navigate directly to `/direct/inbox/` or their exact thread URL, click the `contenteditable=\"true\"` message field once, type the text, and press Enter in a single pass.\n"
+    "4. GUITAR / UKULELE TABS & LOOKUPS: Navigate directly to the primary tab site or targeted search URL in a single tool call. Never output raw HTML/markdown.\n"
+    "5. PREFER BATCH / SINGLE-TURN SCRIPTS: Do not do multi-turn exploratory clicking when a direct URL or single script achieves the result.\n"
+    "6. OBSERVED TAB STATE ONLY: Opening a site means one browser open call with the exact requested URL as a new tab, not switching to an assumed existing tab. Only target tab IDs returned by a fresh browser tab listing or open result. NEVER invent handles or confuse a Hyprland window address with a tab ID. Verify the result before claiming the page loaded."
+)
+
+CODING_DIRECTIVE = (
+    "[Directive: Autonomous Coding & Execution Protocol]\n"
+    "The user requested a software engineering, debugging, or script execution task.\n\n"
+    "=== CODING DISPATCH RULES ===\n"
+    "1. DIRECT EXECUTION FIRST: Speak one short sentence noting what you are checking or changing, then inspect or edit directly unless heavy isolated multi-file work truly requires `invoke_subagent` (subagents block the voice turn until completion).\n"
+    "2. NO VERBAL SYNTAX: Never recite code lines, variable names, or terminal diffs over TTS.\n"
+    "3. NO BLOCKING EDITORS: Never run interactive terminal editors (`nvim`, `nano`, `less`) or blocking `xdg-open` calls without detaching (`nohup ... >/dev/null 2>&1 &`)."
+)
+
+
+def classify_turn_directive(text: str, dispatcher: Any = None, intent_id: Optional[str] = None) -> Optional[str]:
+    """Classifies a prompt via the loaded BGE dispatcher to pick a dynamic directive."""
+    if intent_id is None:
+        if dispatcher is None:
+            rr = sys.modules.get("reflex_router")
+            disp = getattr(rr, "_gideon_dispatcher_instance", None) if rr is not None else None
+            if not disp or disp is False:
+                return None
+            dispatcher = disp
+        peek = getattr(dispatcher, "peek_cached_intent", None)
+        if callable(peek):
+            cached = peek(text)
+            if isinstance(cached, str) and cached:
+                intent_id = cached
+        if intent_id is None:
+            try:
+                intent_id, _conf, _probs = dispatcher.predict(text)
+            except Exception:
+                return None
+    if intent_id in ("browser_use_passthrough", "web_search"):
+        return BROWSER_DIRECTIVE
+    if intent_id == "hard_goal":
+        return CODING_DIRECTIVE
+    if intent_id == "conversation":
+        return CONVERSATION_DIRECTIVE
+    return None
+
+
+_DEFAULT_FLASH_MODELS = {
+    "low": "gemini-3.8-flash-low",
+    "medium": "gemini-3.8-flash-medium",
+    "high": "gemini-3.8-flash-high",
+    "xhigh": "gemini-3.8-flash-high",
+    "max": "gemini-3.8-flash-high",
+}
+_DEFAULT_HYDROGEN_MODELS = _DEFAULT_FLASH_MODELS
+_AUTH_LOG_RE = re.compile(r"(?:applyAuthResult: email=|authenticated successfully as )([^\s,]+)")
+
+
+def _resolve_agy_model(effort: str) -> str:
+    """Returns the configured AGY model slug, defaulting to Gemini 3.8 Flash."""
+    override = os.environ.get("GIDEON_AGY_MODEL", "").strip()
+    if override:
+        return override
+    return _DEFAULT_FLASH_MODELS.get(effort, "gemini-3.8-flash-low")
+
+
+def _read_active_antigravity_account() -> Optional[str]:
+    """Returns the most recently active Antigravity/AGY account email, if known."""
+    best_mtime = -1.0
+    best_email: Optional[str] = None
+
+    app_storage = Path.home() / ".config" / "Antigravity" / "app_storage.json"
+    try:
+        st = app_storage.stat()
+        data = json.loads(app_storage.read_text(encoding="utf-8", errors="ignore"))
+        email = data.get("agy.onboarding.lastLoginUsername") if isinstance(data, dict) else None
+        if isinstance(email, str) and "@" in email:
+            best_mtime = st.st_mtime
+            best_email = email.strip()
+    except (OSError, ValueError):
+        pass
+
+    log_dir = Path.home() / ".gemini" / "antigravity-cli" / "log"
+    try:
+        if log_dir.is_dir():
+            logs = sorted(log_dir.glob("cli-*.log"), key=lambda p: p.stat().st_mtime, reverse=True)[:3]
+            for log_path in logs:
+                st = log_path.stat()
+                if st.st_mtime <= best_mtime:
+                    continue
+                content = log_path.read_text(encoding="utf-8", errors="ignore")
+                matches = _AUTH_LOG_RE.findall(content)
+                if matches:
+                    email = matches[-1].strip()
+                    if "@" in email:
+                        best_mtime = st.st_mtime
+                        best_email = email
+                        break
+    except OSError:
+        pass
+
+    return best_email
+
+
+def _extract_agy_init_error(init_data: object) -> Optional[str]:
+    """Extracts an error message when AGY immediately emits a result/error JSON instead of init."""
+    if not isinstance(init_data, dict):
+        return None
+    if init_data.get("event") == "result":
+        res = init_data.get("result")
+        if isinstance(res, dict) and (res.get("status") == "ERROR" or res.get("error")):
+            return str(res.get("error") or "AGY returned error result during startup")
+    if init_data.get("error"):
+        return str(init_data["error"])
+    return None
+
+
+async def _read_proc_stderr(proc) -> str:
+    """Safely reads bounded startup stderr from a real StreamReader, ignoring mocks."""
+    stderr = getattr(proc, "stderr", None)
+    if not isinstance(stderr, asyncio.StreamReader):
+        return ""
+    try:
+        data = await asyncio.wait_for(stderr.read(4096), timeout=0.5)
+        return data.decode("utf-8", errors="ignore").strip()
+    except (OSError, asyncio.TimeoutError):
+        return ""
+
 
 class AntigravityEngine:
     """Manages the headless `agy` bidirectional NDJSON subprocess."""
@@ -731,6 +1195,8 @@ class AntigravityEngine:
         self.current_tool: Optional[dict] = None
         self._watchdog_task: Optional[asyncio.Task] = None
         self._read_task: Optional[asyncio.Task] = None
+        self._stderr_task: Optional[asyncio.Task] = None
+        self._account_watch_task: Optional[asyncio.Task] = None
         self.turn_start_time = 0.0
         self.conversation_id: Optional[str] = None
         self.effort: str = "low"
@@ -743,6 +1209,94 @@ class AntigravityEngine:
         self._drain_task = None
         self._restart_lock = asyncio.Lock()
         self._closed = False
+        self._auth_account: Optional[str] = None
+        self._last_start_time: float = 0.0
+        self._consecutive_start_failures: int = 0
+
+    def _build_cmd(self, model: str, conversation_id: Optional[str], include_effort: bool = True) -> list[str]:
+        cmd = [
+            "agy", "--input-format", "stream-json", "--output-format", "stream-json",
+            "--dangerously-skip-permissions", "--model", model,
+        ]
+        if include_effort:
+            cmd.extend(["--effort", self.effort])
+        cmd.extend(["-p", ""])
+        if conversation_id:
+            cmd.extend(["--conversation", conversation_id])
+        return cmd
+
+    async def _drain_stderr(self, proc):
+        """Prevents OS pipe deadlock by consuming stderr while the AGY child runs."""
+        stderr = getattr(proc, "stderr", None)
+        if not isinstance(stderr, asyncio.StreamReader):
+            return
+        try:
+            while proc is self.proc and not self._closed:
+                line = await stderr.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="ignore").strip()
+                if text:
+                    logger.debug("AGY stderr: %s", text)
+        except asyncio.CancelledError:
+            pass
+        except (OSError, ValueError):
+            pass
+
+    async def _spawn_and_handshake(self, model: str, conversation_id: Optional[str], include_effort: bool) -> bool:
+        cmd = self._build_cmd(model, conversation_id, include_effort=include_effort)
+        logger.info(
+            "Initializing Gideon's Antigravity Engine (model=%s, effort=%s, conv=%s)...",
+            model,
+            self.effort if include_effort else "none",
+            conversation_id or "new",
+        )
+        self.proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=str(HERE),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        init_line = await asyncio.wait_for(self.proc.stdout.readline(), timeout=25.0)
+        if not init_line:
+            err_text = await _read_proc_stderr(self.proc)
+            if err_text:
+                logger.error("AGY startup stderr: %s", err_text)
+            detail = f": {err_text}" if err_text else ""
+            raise RuntimeError(f"AGY exited during startup (exit code {self.proc.returncode}){detail}")
+
+        try:
+            init_data = json.loads(init_line.decode("utf-8", errors="ignore"))
+        except (ValueError, AttributeError):
+            init_data = None
+
+        err_msg = _extract_agy_init_error(init_data)
+        if err_msg:
+            err_text = await _read_proc_stderr(self.proc)
+            if err_text:
+                logger.error("AGY startup stderr: %s", err_text)
+            await self._discard_process()
+            if include_effort and "--effort" in err_msg:
+                logger.warning("Model %s rejected --effort=%s; retrying without --effort", model, self.effort)
+                return False
+            raise RuntimeError(f"AGY startup error: {err_msg}")
+
+        if isinstance(init_data, dict):
+            cid = init_data.get("conversation_id")
+            if cid:
+                self.conversation_id = cid
+            logger.info(f"Antigravity Engine connected and ready. (conv={self.conversation_id})")
+        else:
+            logger.info("Antigravity Engine connected and ready.")
+
+        if self.proc.returncode is not None:
+            err_text = await _read_proc_stderr(self.proc)
+            if err_text:
+                logger.error("AGY startup stderr: %s", err_text)
+            detail = f": {err_text}" if err_text else ""
+            raise RuntimeError(f"AGY exited during startup (exit code {self.proc.returncode}){detail}")
+        return True
 
     async def start(self, conversation_id: Optional[str] = None, effort: Optional[str] = None):
         self._closed = False
@@ -753,40 +1307,31 @@ class AntigravityEngine:
             self._is_first_turn = True
             self.conversation_id = None
 
-        cmd = [
-            "agy", "--input-format", "stream-json", "--output-format", "stream-json",
-            "--dangerously-skip-permissions", "--effort", self.effort, "-p", ""
-        ]
-        if conversation_id:
-            cmd.extend(["--conversation", conversation_id])
-
-        logger.info(f"Initializing Gideon's Antigravity Engine (effort={self.effort}, conv={conversation_id or 'new'})...")
-        self.proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=str(HERE),
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        init_line = await asyncio.wait_for(self.proc.stdout.readline(), timeout=10.0)
-        if not init_line:
-            raise RuntimeError(f"AGY exited during startup (exit code {self.proc.returncode})")
-        if init_line:
+        model = _resolve_agy_model(self.effort)
+        try:
+            ok = await self._spawn_and_handshake(model, conversation_id, include_effort=True)
+            if not ok:
+                await self._spawn_and_handshake(model, conversation_id, include_effort=False)
+        except Exception:
             try:
-                init_data = json.loads(init_line.decode("utf-8", errors="ignore"))
-                cid = init_data.get("conversation_id")
-                if cid:
-                    self.conversation_id = cid
-                logger.info(f"Antigravity Engine connected and ready. (conv={self.conversation_id})")
-            except (ValueError, AttributeError):
-                logger.info("Antigravity Engine connected and ready.")
+                await self._discard_process()
+            except (OSError, RuntimeError, asyncio.TimeoutError):
+                self.proc = None
+            raise
 
-        if self.proc.returncode is not None:
-            raise RuntimeError(f"AGY exited during startup (exit code {self.proc.returncode})")
+        self._last_start_time = time.monotonic()
+        self._auth_account = _read_active_antigravity_account()
 
-        if self._read_task and self._read_task is not asyncio.current_task() and not self._read_task.done():
-            self._read_task.cancel()
+        for attr in ("_read_task", "_stderr_task", "_account_watch_task"):
+            task = getattr(self, attr)
+            if task and task is not asyncio.current_task() and not task.done():
+                task.cancel()
         self._read_task = asyncio.create_task(self._read_loop())
+        if isinstance(getattr(self.proc, "stderr", None), asyncio.StreamReader):
+            self._stderr_task = asyncio.create_task(self._drain_stderr(self.proc))
+        else:
+            self._stderr_task = None
+        self._account_watch_task = asyncio.create_task(self._account_watch_loop())
 
     def _engine_alive(self):
         return bool(self.proc and self.proc.returncode is None and self.proc.stdin)
@@ -807,6 +1352,60 @@ class AntigravityEngine:
             await asyncio.wait_for(proc.wait(), timeout=5.0)
             self.proc = None
 
+    async def _sync_auth_account(self) -> None:
+        """Restarts an idle AGY child if the active Antigravity login changed externally."""
+        if self._closed or not self._auth_account or not self._engine_alive():
+            return
+        if self.is_turn_active or self._pending_turns:
+            return
+        latest = _read_active_antigravity_account()
+        if not latest or latest == self._auth_account:
+            return
+        async with self._restart_lock:
+            if self._closed or not self._auth_account or self.is_turn_active or self._pending_turns:
+                return
+            latest = _read_active_antigravity_account()
+            if not latest or latest == self._auth_account:
+                return
+            logger.info("Antigravity account changed (%s -> %s); restarting idle AGY engine.", self._auth_account, latest)
+            self._turn_generation += 1
+            tasks = []
+            for attr in ("_read_task", "_stderr_task", "_finish_task", "_drain_task", "_watchdog_task"):
+                task = getattr(self, attr)
+                if task is not asyncio.current_task():
+                    setattr(self, attr, None)
+                if task and task is not asyncio.current_task():
+                    task.cancel()
+                    tasks.append(task)
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self.conversation_id = None
+            self._is_first_turn = True
+            self._consecutive_start_failures = 0
+            try:
+                await self._discard_process()
+            except (OSError, RuntimeError, asyncio.TimeoutError):
+                logger.warning("AGY process cleanup failed during account switch", exc_info=True)
+                self.proc = None
+            try:
+                await self.start(effort=self.effort)
+            except (OSError, RuntimeError, asyncio.TimeoutError):
+                logger.warning("AGY restart on account switch failed; will retry on next prompt", exc_info=True)
+                self.proc = None
+
+    async def _account_watch_loop(self):
+        current = asyncio.current_task()
+        try:
+            while not self._closed and self._account_watch_task is current:
+                await asyncio.sleep(30.0)
+                if self._closed or self._account_watch_task is not current:
+                    break
+                await self._sync_auth_account()
+        except asyncio.CancelledError:
+            pass
+
+    async def _reconnect_backoff(self, failures: int):
+        await asyncio.sleep(min(2.0 * failures, 5.0))
+
     async def _ensure_engine_alive(self, failed_proc=None):
         """Serialize EOF/input recovery; an old reader cannot reset a new child."""
         async with self._restart_lock:
@@ -820,7 +1419,7 @@ class AntigravityEngine:
             logger.warning("AGY engine dropped (exit code %s); reconnecting", exit_code)
             self._turn_generation += 1
             tasks = []
-            for attr in ("_read_task", "_finish_task", "_drain_task", "_watchdog_task"):
+            for attr in ("_read_task", "_stderr_task", "_finish_task", "_drain_task", "_watchdog_task"):
                 task = getattr(self, attr)
                 if task is not asyncio.current_task():
                     setattr(self, attr, None)
@@ -833,7 +1432,30 @@ class AntigravityEngine:
             self.accumulated_reply = ""
             self._reset_turn()
             await self.tts.interrupt()
-            self._engine_notice("My engine dropped. I'm reconnecting.")
+
+            if failed_proc is None:
+                self._consecutive_start_failures = 0
+            elif self._last_start_time > 0 and (time.monotonic() - self._last_start_time) < 15.0:
+                self._consecutive_start_failures += 1
+            else:
+                self._consecutive_start_failures = 0
+
+            if failed_proc is not None and self._consecutive_start_failures >= 3:
+                logger.error("AGY dropped %d times right after startup; pausing auto-reconnect until next prompt", self._consecutive_start_failures)
+                try:
+                    await self._discard_process()
+                except (OSError, RuntimeError, asyncio.TimeoutError):
+                    self.proc = None
+                self._engine_notice("My engine keeps dropping. I'll try again when you next speak.")
+                return False
+
+            if self._consecutive_start_failures <= 1:
+                self._engine_notice("My engine dropped. I'm reconnecting.")
+            if self._consecutive_start_failures > 0:
+                await self._reconnect_backoff(self._consecutive_start_failures)
+                if self._closed:
+                    return False
+
             conversation_id = self.conversation_id
             try:
                 await self._discard_process()
@@ -881,19 +1503,21 @@ class AntigravityEngine:
 
         await self.start(conversation_id=self.conversation_id, effort=new_effort)
 
-    async def send_prompt(self, text: str):
+    async def send_prompt(self, text: str, *, display_text: Optional[str] = None):
         if not text.strip():
             return
         # Priority intervention: interrupt in-flight speaking
         await self.tts.interrupt()
+        await self._sync_auth_account()
         if not await self._ensure_engine_alive():
             return
 
+        shown_text = display_text.strip() if isinstance(display_text, str) and display_text.strip() else text
         self.sentence_buffer = ""
         self.accumulated_reply = ""
-        self.bus.set_user_transcript(text)
+        self.bus.set_user_transcript(shown_text)
         self.bus.current_reply = ""
-        print(f"\nYou: {text}\n", flush=True)
+        print(f"\nYou: {shown_text}\n", flush=True)
         self._turn_generation += 1
         if self._finish_task:
             self._finish_task.cancel()
@@ -908,9 +1532,9 @@ class AntigravityEngine:
             self._watchdog_task.cancel()
         self._watchdog_task = asyncio.create_task(self._watchdog_loop())
 
-        await self._write_prompt(text, self._turn_generation)
+        await self._write_prompt(text, self._turn_generation, directive_hint=display_text)
 
-    async def _write_prompt(self, content: str, generation) -> bool:
+    async def _write_prompt(self, content: str, generation, *, directive_hint: Optional[str] = None) -> bool:
         """Queue native user input without blocking the input loop on pipe drain.
 
         AGY 1.5.3 stream-json handles user events sequentially, not as an
@@ -930,8 +1554,15 @@ class AntigravityEngine:
             self.bus.current_reply = ""
             self.bus.set_state("conversing", "LLM: Thinking…")
             self._watchdog_task = asyncio.create_task(self._watchdog_loop())
-        if generation is not None and self._is_first_turn:
-            content = f"{GIDEON_VOICE_PREAMBLE}\n\nUser: {content}"
+        if generation is not None:
+            directive = classify_turn_directive(directive_hint if directive_hint is not None else content)
+            if self._is_first_turn:
+                if directive and directive not in (GIDEON_VOICE_PREAMBLE, CONVERSATION_DIRECTIVE):
+                    content = f"{GIDEON_VOICE_PREAMBLE}\n\n{directive}\n\nUser: {content}"
+                else:
+                    content = f"{GIDEON_VOICE_PREAMBLE}\n\nUser: {content}"
+            elif directive and directive not in (GIDEON_VOICE_PREAMBLE, CONVERSATION_DIRECTIVE):
+                content = f"{directive}\n\nUser: {content}"
         try:
             payload = json.dumps({"event": "user", "message": {"content": content}}) + "\n"
             self.proc.stdin.write(payload.encode())
@@ -983,11 +1614,11 @@ class AntigravityEngine:
         async with self._restart_lock:
             self._closed = True
             self._turn_generation += 1
-            tasks = [t for t in (self._read_task, self._finish_task, self._drain_task, self._watchdog_task) if t]
+            tasks = [t for t in (self._read_task, self._stderr_task, self._account_watch_task, self._finish_task, self._drain_task, self._watchdog_task) if t]
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
-            self._read_task = self._finish_task = self._drain_task = None
+            self._read_task = self._stderr_task = self._account_watch_task = self._finish_task = self._drain_task = None
             await self.tts.interrupt()
             self._pending_turns.clear()
             self._reset_turn()
@@ -1038,6 +1669,7 @@ class AntigravityEngine:
         self.sentence_buffer = ""
         self.accumulated_reply = ""
         active_tool_id = 0
+        active_tool_step_index = None
 
         while True:
             try:
@@ -1101,11 +1733,39 @@ class AntigravityEngine:
                                     self.bus.set_state("conversing", "LLM: Synthesizing voice…")
                                 self.tts.queue_sentence(clean)
 
-                # Model is invoking a tool
-                elif step_type == "tool_call":
-                    tool_name = update.get("tool_name", "tool")
-                    tool_args = update.get("tool_args", {})
+                # Model is invoking or finishing a tool
+                elif step_type in ("tool", "tool_call"):
+                    tool_state = str(update.get("state") or "").upper()
+                    step_index = update.get("step_index")
+                    tool_info = update.get("tool_info") if isinstance(update.get("tool_info"), dict) else {}
+                    tool_name = update.get("tool_name") or tool_info.get("name") or "tool"
+                    tool_args = update.get("tool_args")
+                    if not isinstance(tool_args, dict):
+                        params = tool_info.get("parameters")
+                        tool_args = params if isinstance(params, dict) else {}
+
+                    if tool_state in ("DONE", "ERROR", "FAILED", "CANCELLED"):
+                        if self.current_tool and self.current_tool.get("status") == "running":
+                            self.current_tool["status"] = "done" if tool_state == "DONE" else "error"
+                            self.bus.current_tool = dict(self.current_tool)
+                        active_tool_step_index = None
+                        if not self.tts._is_speaking and self.bus.current_state == "toolcall":
+                            self.bus.set_state("conversing", "LLM: Thinking…")
+                        continue
+
+                    if tool_state in ("PENDING", "WAITING", "QUEUED"):
+                        continue
+
+                    if (
+                        step_index is not None
+                        and step_index == active_tool_step_index
+                        and self.current_tool
+                        and self.current_tool.get("status") == "running"
+                    ):
+                        continue
+
                     active_tool_id += 1
+                    active_tool_step_index = step_index
 
                     target = "shell" if "command" in tool_name or "exec" in tool_name else ("web" if "browser" in tool_name or "url" in tool_name else "core")
 
@@ -1157,26 +1817,125 @@ class AntigravityEngine:
                 self._finish_task = asyncio.create_task(self._finish_turn(generation))
 
 
+def _resolve_hf_snapshot(repo_folder: str) -> Optional[str]:
+    """Return locally cached HuggingFace snapshot dir so ONNX models boot offline."""
+    repo_dir = Path.home() / ".cache" / "huggingface" / "hub" / repo_folder
+    ref_main = repo_dir / "refs" / "main"
+    if ref_main.is_file():
+        rev = ref_main.read_text(encoding="utf-8", errors="ignore").strip()
+        snap = repo_dir / "snapshots" / rev
+        if snap.is_dir():
+            return str(snap)
+    snaps_dir = repo_dir / "snapshots"
+    if snaps_dir.is_dir():
+        candidates = [p for p in snaps_dir.iterdir() if p.is_dir()]
+        if candidates:
+            candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            return str(candidates[0])
+    return None
+
+
+# STT Backend selection: "parakeet" (Parakeet TDT 0.6B v3 INT8 ONNX + Silero VAD) or "whisper".
+STT_BACKEND = os.environ.get("GIDEON_STT_BACKEND", "parakeet").strip().lower()
+PARAKEET_STT_MODEL_ID = "nemo-parakeet-tdt-0.6b-v3"
+
+
 class VoiceListener:
-    """High-fidelity microphone listener with CUDA faster-whisper turbo STT."""
-    def __init__(self):
-        _preload_cuda_libs()
-        import faster_whisper
-        self.device = "cuda"
-        self.compute_type = "int8"
-        try:
-            logger.info("Loading Faster-Whisper (turbo) on CUDA...")
-            self.model = faster_whisper.WhisperModel("turbo", device="cuda", compute_type="int8")
-            logger.info("Faster-Whisper CUDA turbo engine initialized.")
-        except Exception as e:
-            logger.warning(f"CUDA STT initialization failed ({e}), falling back to CPU.")
-            self.device = "cpu"
-            self.model = faster_whisper.WhisperModel("small.en", device="cpu", compute_type="int8")
+    """High-fidelity microphone listener using Parakeet TDT INT8 ONNX (or Faster-Whisper fallback)."""
+    def __init__(self, backend: str = STT_BACKEND):
+        self.backend = backend
+        self.device = "cpu"
+        self.processor = None
+        self.model = None
+        self.vad = None
+
+        if self.backend == "parakeet":
+            try:
+                import onnx_asr
+                import onnxruntime as ort
+
+                opts = ort.SessionOptions()
+                opts.intra_op_num_threads = min(3, max(1, os.cpu_count() or 2))
+                opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+
+                parakeet_path = _resolve_hf_snapshot("models--istupakov--parakeet-tdt-0.6b-v3-onnx")
+                vad_path = _resolve_hf_snapshot("models--istupakov--silero-vad-onnx")
+                logger.info(
+                    "Loading Parakeet TDT 0.6B v3 INT8 ONNX on CPU (%s)...",
+                    "offline cache" if parakeet_path else "HuggingFace hub",
+                )
+                asr_model = onnx_asr.load_model(
+                    PARAKEET_STT_MODEL_ID,
+                    path=parakeet_path,
+                    quantization="int8",
+                    sess_options=opts,
+                    providers=["CPUExecutionProvider"],
+                )
+                try:
+                    vad_opts = ort.SessionOptions()
+                    vad_opts.intra_op_num_threads = 1
+                    vad_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                    self.vad = onnx_asr.load_vad(
+                        "silero",
+                        path=vad_path,
+                        sess_options=vad_opts,
+                        providers=["CPUExecutionProvider"],
+                    )
+                    self.model = asr_model.with_vad(
+                        self.vad,
+                        threshold=0.38,
+                        min_speech_duration_ms=160,
+                        min_silence_duration_ms=250,
+                        speech_pad_ms=120,
+                        max_speech_duration_s=30,
+                    )
+                except Exception as vad_exc:
+                    logger.warning(f"Silero VAD unavailable ({vad_exc}); running Parakeet without VAD pre-filter.")
+                    self.model = asr_model
+                logger.info("Parakeet TDT 0.6B v3 INT8 ONNX engine initialized cleanly on CPU.")
+            except Exception as e:
+                logger.warning(f"Parakeet ONNX STT initialization failed ({e}), falling back to Faster-Whisper.")
+                self.backend = "whisper"
+
+        if self.backend == "whisper":
+            _preload_cuda_libs()
+            import faster_whisper
+            import torch
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.compute_type = "int8"
+            try:
+                logger.info("Loading Faster-Whisper (turbo) on CUDA...")
+                try:
+                    self.model = faster_whisper.WhisperModel("turbo", device="cuda", compute_type="int8", local_files_only=True)
+                except Exception:
+                    self.model = faster_whisper.WhisperModel("turbo", device="cuda", compute_type="int8")
+                logger.info("Faster-Whisper CUDA turbo engine initialized.")
+            except Exception as e:
+                logger.warning(f"CUDA STT initialization failed ({e}), falling back to CPU.")
+                self.device = "cpu"
+                try:
+                    self.model = faster_whisper.WhisperModel("small.en", device="cpu", compute_type="int8", local_files_only=True)
+                except Exception:
+                    self.model = faster_whisper.WhisperModel("small.en", device="cpu", compute_type="int8")
 
     def transcribe_audio(self, pcm_data: bytes) -> str:
         if not pcm_data or len(pcm_data) < 3200:
             return ""
         audio_data = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32) / 32768.0
+
+        # Parakeet TDT INT8 ONNX path
+        if getattr(self, "backend", None) == "parakeet" and getattr(self, "model", None) is not None:
+            try:
+                res = self.model.recognize(audio_data, sample_rate=16000)
+                if isinstance(res, str):
+                    return res.strip()
+                parts = [str(getattr(seg, "text", seg) or "").strip() for seg in res]
+                return " ".join(p for p in parts if p).strip()
+            except Exception as e:
+                logger.error(f"Parakeet STT transcription error: {e}")
+                return ""
+
+        # Faster-Whisper path (preserved for Large-V3-Turbo & unit tests)
         try:
             segments, _ = self.model.transcribe(
                 audio_data,
@@ -1325,6 +2084,9 @@ class WakeWordListener:
         self._hot_mic_armed = False
         self._hot_mic_until = 0.0
         self._hot_mic_timer: Optional[threading.Timer] = None
+        # Bumped on every arm/disarm: lets delayed re-arm tasks (_post_wake,
+        # _post_talk) detect that a dismissal landed during their sleep.
+        self._hot_mic_epoch = 0
         self._listener_instance = None
 
     def is_hot_mic_active(self) -> bool:
@@ -1360,6 +2122,7 @@ class WakeWordListener:
         self.hot_mic_timeout = timeout_s
         self._hot_mic_until = time.time() + timeout_s
         self._hot_mic_armed = True
+        self._hot_mic_epoch += 1
         if self._listener_instance:
             self._listener_instance.hot_mic_timeout = timeout_s
         self.bus.set_state("hotmic")
@@ -1385,6 +2148,7 @@ class WakeWordListener:
         self._hot_mic_timer.start()
 
     def disarm_hot_mic(self):
+        self._hot_mic_epoch += 1
         self._hot_mic_armed = False
         self._hot_mic_until = 0.0
         if self._hot_mic_timer:
@@ -1531,7 +2295,64 @@ class StdinReader:
         return line_bytes.decode("utf-8", errors="ignore").strip()
 
 
-def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_listener, get_engine, get_wake_listener, loop: asyncio.AbstractEventLoop, get_tts=None, switch_engine_cb=None):
+async def _dispatch_user_utterance(
+    text: str,
+    *,
+    engine_getter,
+    bus: SignalBus,
+    tts: Optional[TTSPlayer],
+    wake_listener=None,
+    effort: Optional[str] = None,
+    rearm_after_reflex: bool = False,
+) -> None:
+    """Unified prompt router shared by PTT, wake-word, HTTP UI, and terminal stdin."""
+    bus.set_user_transcript(text)
+    prepared = await _prepare_user_prompt(text, bus=bus, tts=tts)
+    if prepared is None:
+        return
+
+    curr_engine = engine_getter()
+    if effort and hasattr(curr_engine, "set_effort") and effort != getattr(curr_engine, "effort", None):
+        await curr_engine.set_effort(effort)
+
+    if prepared.used_selection:
+        bus.set_state("conversing", "LLM: Reading selected text…")
+        await curr_engine.send_prompt(prepared.prompt, display_text=text)
+        if prepared.copy_response:
+            asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
+        return
+
+    handled = await try_reflex(text, bus=bus, tts=tts)
+    if not handled:
+        bus.set_state("conversing", "LLM: Thinking…")
+        await curr_engine.send_prompt(text)
+    elif rearm_after_reflex and wake_listener is not None:
+        from reflex_router import get_pending_confirmation_store
+        if get_pending_confirmation_store().get() is not None:
+            # Tier-1 confirmation already armed a 15s hot-mic window; do not overwrite it.
+            return
+        hot_mic_epoch = wake_listener._hot_mic_epoch
+
+        async def _post_reflex_hotmic():
+            await asyncio.sleep(2.0)
+            if (
+                bus.current_state in ("bge_reflex", "speaking")
+                and wake_listener._hot_mic_epoch == hot_mic_epoch
+            ):
+                wake_listener.arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
+
+        asyncio.create_task(_post_reflex_hotmic())
+
+
+def _focus_status_safe() -> dict:
+    try:
+        from focus_mode import get_focus_manager
+        return get_focus_manager().status()
+    except Exception:
+        return {"active": False}
+
+
+def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_listener, get_engine, get_wake_listener, loop: asyncio.AbstractEventLoop, get_tts=None):
     """Runs the integrated HTTP server for the GIDEON PRIME visualizer."""
     class VisualizerHandler(BaseHTTPRequestHandler):
         def _host_allowed(self) -> bool:
@@ -1565,9 +2386,12 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                     "wake": bus.wake_enabled,
                     "alert": False,
                     "loading": bus.current_state == "thinking",
-                    "rate_limits": {}
+                    "rate_limits": {},
+                    "focus": _focus_status_safe(),
                 }
                 self._send(json.dumps(data).encode(), "application/json")
+            elif path == "/api/focus":
+                self._send(json.dumps(_focus_status_safe()).encode(), "application/json")
             elif path == "/config":
                 out = {
                     "name": "GIDEON PRIME",
@@ -1617,38 +2441,22 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                                 if _is_dismissal(text):
                                     bus.set_user_transcript(text)
                                     tts_inst = get_tts() if get_tts else None
-                                    await try_reflex(text, bus=bus, tts=tts_inst, set_engine=switch_engine_cb)
+                                    await try_reflex(text, bus=bus, tts=tts_inst)
                                     return
                                 drop_reason = _get_hallucination_drop_reason(text)
                                 if drop_reason is not None:
                                     logger.info("[STT Filter] Dropping hallucinated/empty utterance %r (%s)", text, drop_reason)
                                     bus.set_state("idle")
                                     return
-                                bus.set_user_transcript(text)
                                 tts_inst = get_tts() if get_tts else None
-                                prepared = await _prepare_user_prompt(text, bus=bus, tts=tts_inst)
-                                if prepared is None:
-                                    return
-                                if prepared.used_selection:
-                                    curr_engine = get_engine()
-                                    bus.set_state("conversing", "LLM: Reading selected text…")
-                                    await curr_engine.send_prompt(prepared.prompt)
-                                    if prepared.copy_response:
-                                        asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
-                                    return
-                                handled = await try_reflex(text, bus=bus, tts=tts_inst, set_engine=switch_engine_cb)
-                                if not handled:
-                                    curr_engine = get_engine()
-                                    bus.set_state("conversing", "LLM: Thinking…")
-                                    await curr_engine.send_prompt(text)
-                                else:
-                                    wake_listener = get_wake_listener()
-                                    if wake_listener:
-                                        async def _post_talk():
-                                            await asyncio.sleep(2.0)
-                                            if bus.current_state in ("bge_reflex", "speaking"):
-                                                wake_listener.arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
-                                        asyncio.create_task(_post_talk())
+                                await _dispatch_user_utterance(
+                                    text,
+                                    engine_getter=get_engine,
+                                    bus=bus,
+                                    tts=tts_inst,
+                                    wake_listener=get_wake_listener(),
+                                    rearm_after_reflex=True,
+                                )
                             else:
                                 logger.info("[STT Filter] Dropping empty capture (no speech detected)")
                                 bus.set_state("idle")
@@ -1665,27 +2473,14 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                     if text:
                         async def _dispatch():
                             tts_inst = get_tts() if get_tts else None
-                            bus.set_user_transcript(text)
                             bus.set_state("thinking", "Evaluating prompt…")
-                            prepared = await _prepare_user_prompt(text, bus=bus, tts=tts_inst)
-                            if prepared is None:
-                                return
-                            if prepared.used_selection:
-                                curr_engine = get_engine()
-                                bus.set_state("conversing", "LLM: Reading selected text…")
-                                if eff and hasattr(curr_engine, "set_effort") and eff != curr_engine.effort:
-                                    await curr_engine.set_effort(eff)
-                                await curr_engine.send_prompt(prepared.prompt)
-                                if prepared.copy_response:
-                                    asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
-                                return
-                            handled = await try_reflex(text, bus=bus, tts=tts_inst, set_engine=switch_engine_cb)
-                            if not handled:
-                                curr_engine = get_engine()
-                                bus.set_state("conversing", "LLM: Thinking…")
-                                if eff and hasattr(curr_engine, "set_effort") and eff != curr_engine.effort:
-                                    await curr_engine.set_effort(eff)
-                                await curr_engine.send_prompt(text)
+                            await _dispatch_user_utterance(
+                                text,
+                                engine_getter=get_engine,
+                                bus=bus,
+                                tts=tts_inst,
+                                effort=eff,
+                            )
                         asyncio.run_coroutine_threadsafe(_dispatch(), loop)
                         self._send(b'{"status":"queued"}', "application/json")
                     else:
@@ -1722,13 +2517,41 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                 # Notify SignalBus / Quickshell Orb that user returned to desktop
                 bus.set_state(bus.current_state)
                 self._send(b'{"status":"switched_to_orb"}', "application/json")
+            elif path == "/api/focus":
+                try:
+                    data = json.loads(body.decode("utf-8"))
+                    act = str(data.get("action", "status")).strip().lower()
+                    async def _focus_op():
+                        from focus_mode import get_focus_manager
+                        mgr = get_focus_manager(bus=bus, tts=get_tts() if get_tts else None)
+                        if act == "start":
+                            mins = data.get("minutes")
+                            return mgr.start(duration_minutes=mins, goal=str(data.get("goal", "")))
+                        if act == "stop":
+                            return mgr.stop()
+                        return mgr.status()
+                    res = asyncio.run_coroutine_threadsafe(_focus_op(), loop).result(timeout=3.0)
+                    self._send(json.dumps(res).encode(), "application/json")
+                except Exception as e:
+                    self._send(json.dumps({"error": str(e)}).encode(), "application/json", 400)
+            elif path == "/api/debug-bundle":
+                try:
+                    from gideon_debug import collect_debug_bundle
+                    out_path, summary = collect_debug_bundle()
+                    self._send(json.dumps({"status": "ok", "path": str(out_path), "summary": summary}).encode(), "application/json")
+                except Exception as e:
+                    self._send(json.dumps({"error": str(e)}).encode(), "application/json", 500)
             else:
                 self._send(b'{"error":"not found"}', "application/json", 404)
 
         def _static(self, path):
             if path == "/" or path == "":
                 path = "/faces/board/index.html"
-            target = (VISUALIZER_DIR / path.lstrip("/")).resolve()
+            base = VISUALIZER_DIR.resolve()
+            target = (base / path.lstrip("/")).resolve()
+            if target != base and base not in target.parents:
+                self._send(b"forbidden", "text/plain", 403)
+                return
             if target.is_dir():
                 target = target / "index.html"
             if not target.is_file():
@@ -1754,11 +2577,7 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
     server.serve_forever()
 
 
-def _make_engine(name: str, bus: SignalBus, tts: TTSPlayer):
-    """Factory: 'agy' default preserves existing behavior; 'opencode' is opt-in sidecar."""
-    if name == "opencode":
-        from opencode_engine import OpenCodeEngine
-        return OpenCodeEngine(bus, tts, directory=str(HERE))
+def _make_engine(bus: SignalBus, tts: TTSPlayer) -> AntigravityEngine:
     return AntigravityEngine(bus, tts)
 
 
@@ -1778,53 +2597,34 @@ async def _shutdown_engine(engine) -> None:
 
 async def main():
     parser = argparse.ArgumentParser(description="Gideon voice console")
-    parser.add_argument("--engine", choices=["agy", "opencode"],
-                        default=os.environ.get("GIDEON_ENGINE", "agy"),
-                        help="Brain backend (default agy; opencode is opt-in sidecar)")
-    args, _ = parser.parse_known_args()
+    parser.add_argument(
+        "--debug-bundle",
+        nargs="?",
+        const="",
+        default=None,
+        help="Write a scrubbed status and log bundle to Downloads (or PATH) and exit",
+    )
+    args, _unknown = parser.parse_known_args()
+    if args.debug_bundle is not None:
+        from gideon_debug import collect_debug_bundle
+        dest = args.debug_bundle.strip() or None
+        _path, summary = collect_debug_bundle(dest)
+        print(summary, flush=True)
+        return
 
     loop = asyncio.get_running_loop()
     bus = SignalBus(SIGNALS_DIR)
     await bus.start_ui_server()
     tts = TTSPlayer(bus)
     tts.start_worker()
-    engine_name = args.engine
-    engine = _make_engine(engine_name, bus, tts)
-    bus.engine_name = engine_name
+    from focus_mode import get_focus_manager
+    focus_manager = get_focus_manager(bus=bus, tts=tts)
+    engine = _make_engine(bus, tts)
+    bus.engine_name = "agy"
     engine_holder = [engine]
     wake_listener_holder = [None]
     recorder = AudioStreamRecorder(bus)
     listener_instance = [None]
-
-    async def switch_engine(target: str) -> bool:
-        nonlocal engine_name
-        if target not in ("agy", "opencode"):
-            logger.warning(f"Unknown engine target: {target}")
-            return False
-        if target == engine_name:
-            logger.info(f"[Engine] already on {target}")
-            return True
-        try:
-            await _shutdown_engine(engine_holder[0])
-            new_engine = _make_engine(target, bus, tts)
-            await new_engine.start()
-            if wake_listener_holder[0]:
-                new_engine.wake_listener = wake_listener_holder[0]
-            engine_holder[0] = new_engine
-            engine_name = target
-            bus.engine_name = target
-            logger.info(f"[Engine] dynamically switched to {target}")
-            return True
-        except Exception as e:
-            logger.error(f"Engine switch to {target} failed ({e}); reverting to agy.")
-            new_engine = _make_engine("agy", bus, tts)
-            await new_engine.start()
-            if wake_listener_holder[0]:
-                new_engine.wake_listener = wake_listener_holder[0]
-            engine_holder[0] = new_engine
-            engine_name = "agy"
-            bus.engine_name = "agy"
-            return False
 
     def on_wake_speech(pcm_bytes: bytes):
         bus.set_state("thinking", "Transcribing speech…")
@@ -1839,7 +2639,7 @@ async def main():
                         if wl:
                             wl.disarm_hot_mic()
                         bus.set_user_transcript(text)
-                        await try_reflex(text, bus=bus, tts=tts, set_engine=switch_engine)
+                        await try_reflex(text, bus=bus, tts=tts)
                         return
                     # 2. Whisper silence/hallucination filter: drop before transcript/BGE/LLM
                     # and do NOT re-arm, extend, or reset the hot-mic window.
@@ -1853,30 +2653,14 @@ async def main():
                         return
                     if wl:
                         wl.disarm_hot_mic()
-                    bus.set_user_transcript(text)
-                    # send_prompt stops TTS and injects the actual follow-up.
-                    # Do not enqueue a separate stop turn before every prompt.
-                    prepared = await _prepare_user_prompt(text, bus=bus, tts=tts)
-                    if prepared is None:
-                        return
-                    if prepared.used_selection:
-                        curr_engine = engine_holder[0]
-                        bus.set_state("conversing", "LLM: Reading selected text…")
-                        await curr_engine.send_prompt(prepared.prompt)
-                        if prepared.copy_response:
-                            asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
-                        return
-                    handled = await try_reflex(text, bus=bus, tts=tts, set_engine=switch_engine)
-                    if not handled:
-                        curr_engine = engine_holder[0]
-                        bus.set_state("conversing", "LLM: Thinking…")
-                        await curr_engine.send_prompt(text)
-                    else:
-                        async def _post_wake():
-                            await asyncio.sleep(2.0)
-                            if wake_listener_holder[0] and bus.current_state in ("bge_reflex", "speaking"):
-                                wake_listener_holder[0].arm_hot_mic(timeout_s=HOT_MIC_WINDOW_S)
-                        asyncio.create_task(_post_wake())
+                    await _dispatch_user_utterance(
+                        text,
+                        engine_getter=lambda: engine_holder[0],
+                        bus=bus,
+                        tts=tts,
+                        wake_listener=wl,
+                        rearm_after_reflex=True,
+                    )
                 else:
                     logger.info("[STT Filter] Dropping empty capture (no speech detected)")
                     if wl:
@@ -1899,6 +2683,8 @@ async def main():
     )
     wake_listener_holder[0] = wake_listener
     engine.wake_listener = wake_listener
+    bus.wake_listener = wake_listener
+    bus.engine = engine
     # Farewell ("bye bye") reflex hook: drop the hot-mic window and settle idle.
     bus.dismiss_hot_mic = wake_listener.disarm_hot_mic
     bus.arm_hot_mic = wake_listener.arm_hot_mic
@@ -1916,7 +2702,7 @@ async def main():
     # Start integrated visualizer HTTP server IMMEDIATELY
     server_thread = threading.Thread(
         target=run_visualizer_server,
-        args=(bus, recorder, lambda: listener_instance[0], lambda: engine_holder[0], lambda: wake_listener_holder[0], loop, lambda: tts, switch_engine),
+        args=(bus, recorder, lambda: listener_instance[0], lambda: engine_holder[0], lambda: wake_listener_holder[0], loop, lambda: tts),
         daemon=True
     )
     server_thread.start()
@@ -1941,11 +2727,11 @@ async def main():
     await stdin_reader.start()
 
     print("\n" + "="*65, flush=True)
-    print(f" GIDEON PRIME EXECUTIVE CONSOLE [{engine_name}] ", flush=True)
+    print(" GIDEON PRIME EXECUTIVE CONSOLE [agy] ", flush=True)
     print(" • WAKE WORD: Say 'Hey Jarvis' to speak hands-free", flush=True)
     print(" • HOLD SPACE IN BROWSER to speak (release to send)", flush=True)
     print(" • Or type any query directly in browser or terminal", flush=True)
-    print(" • 'engine agy|opencode' to switch backend, 'interrupt' to stop turn", flush=True)
+    print(" • Type 'interrupt' to stop current turn", flush=True)
     print(" • Type 'quit' or 'exit' to close", flush=True)
     print("="*65 + "\n", flush=True)
 
@@ -1955,37 +2741,6 @@ async def main():
 
             if user_in.lower() in ("quit", "exit"):
                 break
-
-            # Runtime backend switch without breaking the agy path.
-            if user_in.lower() in ("engine", "engine agy", "engine opencode"):
-                parts = user_in.split()
-                if len(parts) == 1:
-                    print(f"[Engine] current: {engine_name}\n", flush=True)
-                    continue
-                target = parts[1]
-                if target == engine_name:
-                    print(f"[Engine] already on {target}\n", flush=True)
-                    continue
-                try:
-                    await _shutdown_engine(engine_holder[0])
-                    engine = _make_engine(target, bus, tts)
-                    await engine.start()
-                    if wake_listener_holder[0]:
-                        engine.wake_listener = wake_listener_holder[0]
-                    engine_holder[0] = engine
-                    engine_name = target
-                    bus.engine_name = target
-                    print(f"[Engine] switched to {target}\n", flush=True)
-                except Exception as e:
-                    logger.error(f"Engine switch to {target} failed ({e}); reverting to agy.")
-                    engine = _make_engine("agy", bus, tts)
-                    await engine.start()
-                    if wake_listener_holder[0]:
-                        engine.wake_listener = wake_listener_holder[0]
-                    engine_holder[0] = engine
-                    engine_name = "agy"
-                    bus.engine_name = "agy"
-                continue
 
             if user_in.lower() == "interrupt":
                 try:
@@ -2013,29 +2768,22 @@ async def main():
                     continue
                 user_in = text
 
-            bus.set_user_transcript(user_in)
-            prepared = await _prepare_user_prompt(user_in, bus=bus, tts=tts)
-            if prepared is None:
-                continue
-            if prepared.used_selection:
-                curr_engine = engine_holder[0]
-                bus.set_state("conversing", "LLM: Reading selected text…")
-                await curr_engine.send_prompt(prepared.prompt)
-                if prepared.copy_response:
-                    asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
-                continue
-
-            handled = await try_reflex(user_in, bus=bus, tts=tts, set_engine=switch_engine)
-            if not handled:
-                await engine_holder[0].send_prompt(user_in)
+            await _dispatch_user_utterance(
+                user_in,
+                engine_getter=lambda: engine_holder[0],
+                bus=bus,
+                tts=tts,
+            )
 
         except (KeyboardInterrupt, EOFError):
             break
 
     logger.info("Shutting down Gideon...")
+    focus_manager.stop()
     wake_listener.stop()
     bus.set_state("idle")
     await _shutdown_engine(engine_holder[0])
+    await tts.close()
 
 if __name__ == "__main__":
     asyncio.run(main())

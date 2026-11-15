@@ -37,13 +37,11 @@ class TestGideonReflexIntegration(unittest.IsolatedAsyncioTestCase):
             mock_rf.assert_called_once_with(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1"])
             self.bus.set_state.assert_called_with("idle")
 
-    async def test_try_reflex_engine_switch_integration(self):
-        mock_set_engine = AsyncMock(return_value=True)
+    async def test_try_reflex_engine_switch_reports_antigravity_only(self):
         with patch.object(self.tts, "speak") as mock_speak:
-            handled = await try_reflex("switch to opencode", bus=self.bus, tts=self.tts, set_engine=mock_set_engine)
+            handled = await try_reflex("switch to opencode", bus=self.bus, tts=self.tts)
             self.assertTrue(handled)
-            mock_set_engine.assert_called_once_with("opencode")
-            mock_speak.assert_called_once_with("Switched to OpenCode.")
+            mock_speak.assert_called_once_with("Antigravity is already the active engine.")
 
     async def test_non_reflex_query_returns_false(self):
         mock_set_engine = AsyncMock(return_value=True)

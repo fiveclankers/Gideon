@@ -7,7 +7,7 @@ Implements all handlers for:
 - study_traps_view (Black Book traps extraction)
 - study_sprint_start (launch study workspace)
 - flash_note_add (Obsidian markdown capture)
-- engine_switch (OpenCode / Antigravity / Lyra)
+- engine_switch (Antigravity active engine info)
 - Pass-through routing: conversation, hard_goal, web_search, browser_use_passthrough
 - Safety and confidence risk gating.
 """
@@ -25,10 +25,18 @@ from gideon_shared import HandlerResult, run_cmd_async
 
 logger = logging.getLogger("gideon.handlers.study")
 
-STUDY_PYTHON = "/home/cat/jarvis/.venv/bin/python"
-STUDY_SCRIPT = "/home/cat/study/scripts/study_engine.py"
-DAILY_LEDGER_PATH = Path("/home/cat/notes/daily_ledger.md")
-OBSIDIAN_VAULT = Path("/home/cat/Documents/Obsidian Vault")
+STUDY_PYTHON = os.environ.get("GIDEON_PYTHON", "/home/cat/jarvis/.venv/bin/python")
+STUDY_SCRIPT = os.environ.get("GIDEON_STUDY_SCRIPT", "/home/cat/study/scripts/study_engine.py")
+STUDY_LAUNCHER_SCRIPT = os.environ.get(
+    "GIDEON_STUDY_LAUNCHER",
+    "/home/cat/study/scripts/launch_study_workspace.sh",
+)
+DAILY_LEDGER_PATH = Path(
+    os.environ.get("GIDEON_NOTES_FILE", "/home/cat/notes/daily_ledger.md")
+).expanduser()
+OBSIDIAN_VAULT = Path(
+    os.environ.get("GIDEON_OBSIDIAN_VAULT", "/home/cat/Documents/Obsidian Vault")
+).expanduser()
 
 # Safety Risk Thresholds
 # Intents below these confidence thresholds are escalated to LLM fallback rather than executing locally
@@ -127,8 +135,7 @@ async def handle_study_traps_view(params: Dict[str, Any], raw_text: str = "") ->
 
 async def handle_study_sprint_start(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
     chapter = params.get("chapter", "")
-    script_path = "/home/cat/study/scripts/launch_study_workspace.sh"
-    cmd = ["bash", script_path]
+    cmd = ["bash", STUDY_LAUNCHER_SCRIPT]
     if chapter:
         cmd.append(str(chapter))
     # Strip ELECTRON_RUN_AS_NODE so Obsidian GUI launches cleanly without electron crashing
@@ -167,8 +174,7 @@ async def handle_flash_note_add(params: Dict[str, Any], raw_text: str = "") -> H
 
 
 async def handle_engine_switch(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    engine = params.get("engine", "antigravity").lower()
-    return HandlerResult(ok=True, message=f"Engine switched to {engine.upper()}", data={"engine": engine})
+    return HandlerResult(ok=True, message="Antigravity is already the active engine.", data={"engine": "agy"})
 
 
 # Pass-Through Router Handlers

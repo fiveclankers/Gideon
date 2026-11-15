@@ -28,13 +28,15 @@ When asked to send an Instagram DM:
 5. Do not prompt for confirmation or pause for multi-turn verification unless explicitly requested.
 
 ## Music Playback Directives
-- Never use generic `playerctl play` or `playerctl` toggles when playing music, as browser tabs (Chrome/Chromium) with open YouTube/video tabs will intercept MPRIS and play unwanted video audio.
-- For music playback, always route directly to the background music daemon via `/tmp/music-mpv.sock` (e.g. using `echo '{ "command": ["loadfile", "ytdl://ytsearch:<query>", "replace"] }' | socat - /tmp/music-mpv.sock`) or `~/.local/bin/music`.
-- Always ensure music playback is actively unpaused immediately after loading the queue (`set_property pause false` or `~/.local/bin/music resume`). Never leave music paused after starting.
+- Never use generic `playerctl play` or `playerctl` toggles for music, never invoke `socat` on `/tmp/music-mpv.sock`, and never pass `ytdl://ytsearch:` to `mpv`. Follow the `gideon-music` skill and `~/.local/bin/music` directly.
+- For local music playback, use `~/.local/bin/music play --search "<query>"` (or `--artist`, `--genre`, `--mood`, `--playlist`). Add `--online` for local-first with YouTube Music fallback in one call. Never run `--help` to inspect syntax.
+- For non-local, unique, or vague online streams/queues, use `~/.local/bin/music online "<artist/song>" --json` (or `--count 3`, or up to 3 concrete track queries translated from the user's vibe). `music` manages `mpv`, unpauses, and verifies real playback before returning `0`.
+- For music daemon control, use `~/.local/bin/music pause|resume|toggle|next|previous|stop|status`.
 
 ## gideon-doctor
 - When tuning or fixing GIDEON's prompt, persona, voice rules, or behavioral quirks, invoke and follow the `gideon-doctor` skill at `~/.agents/skills/gideon-doctor/SKILL.md`.
 - Strictly isolate changes to `GIDEON_VOICE_PREAMBLE` in `/home/cat/gideon/gideon.py`. Never touch or modify UI files, shaders, audio capture loops, or daemon infrastructure when addressing prompt requests.
+- NEVER restart `gideon.service` automatically after editing prompt files. Always explicitly ask the user for permission before triggering any service restart so active voice sessions and child processes are never abruptly killed.
 
 ## Clipboard Directives
 - Always copy directly to the Wayland clipboard (`wl-copy`), ensuring `WAYLAND_DISPLAY` (typically `wayland-1`) is set if in a subshell without inherited environment variables. Do not rely on X11 clipboard tools.

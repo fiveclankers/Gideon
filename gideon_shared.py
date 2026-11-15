@@ -205,30 +205,32 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
     Returns an empty dict if the intent takes no parameters or extraction yields default values.
     """
     text = utterance.strip()
+    # Strip trailing sentence punctuation so '$' regexes match whispered/punctuated STT output
+    cmd_text = re.sub(r"[.!?]+$", "", text).strip() or text
     params: Dict[str, Any] = {}
 
     if intent_id == "audio_volume_set":
-        m = _VOL_LEVEL_RE.search(text)
+        m = _VOL_LEVEL_RE.search(cmd_text)
         if m:
             val = parse_number(m.group(1))
             if val is not None and 0 <= val <= 100:
                 params["level"] = val
         else:
             # Fallback scan for any standalone number in the utterance
-            nums = re.findall(r"\b([0-9]{1,3})\s*(?:%|\bpercent\b)?", text)
+            nums = re.findall(r"\b([0-9]{1,3})\s*(?:%|\bpercent\b)?", cmd_text)
             if nums:
                 val = float(nums[0])
                 if 0 <= val <= 100:
                     params["level"] = val
 
     elif intent_id in ("audio_volume_up", "audio_volume_down"):
-        m = _VOL_DELTA_RE.search(text)
+        m = _VOL_DELTA_RE.search(cmd_text)
         if m:
             val = parse_number(m.group(1))
             if val is not None and 0 < val <= 100:
                 params["step"] = val
         else:
-            nums = re.findall(r"\b([0-9]{1,3})\s*(?:%|\bpercent\b)?", text)
+            nums = re.findall(r"\b([0-9]{1,3})\s*(?:%|\bpercent\b)?", cmd_text)
             if nums:
                 val = float(nums[0])
                 if 0 < val <= 100:
@@ -237,26 +239,26 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
                 params["step"] = 10.0  # default 10%
 
     elif intent_id == "brightness_set":
-        m = _BRIGHT_LEVEL_RE.search(text)
+        m = _BRIGHT_LEVEL_RE.search(cmd_text)
         if m:
             val = parse_number(m.group(1))
             if val is not None and 0 <= val <= 100:
                 params["level"] = int(val)
         else:
-            nums = re.findall(r"\b([0-9]{1,3})\s*(?:%|\bpercent\b)?", text)
+            nums = re.findall(r"\b([0-9]{1,3})\s*(?:%|\bpercent\b)?", cmd_text)
             if nums:
                 val = int(nums[0])
                 if 0 <= val <= 100:
                     params["level"] = val
 
     elif intent_id in ("brightness_up", "brightness_down"):
-        m = _BRIGHT_DELTA_RE.search(text)
+        m = _BRIGHT_DELTA_RE.search(cmd_text)
         if m:
             val = parse_number(m.group(1))
             if val is not None and 0 < val <= 100:
                 params["step"] = int(val)
         else:
-            nums = re.findall(r"\b([0-9]{1,3})\s*(?:%|\bpercent\b)?", text)
+            nums = re.findall(r"\b([0-9]{1,3})\s*(?:%|\bpercent\b)?", cmd_text)
             if nums:
                 val = int(nums[0])
                 if 0 < val <= 100:
@@ -265,29 +267,29 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
                 params["step"] = 10  # default 10%
 
     elif intent_id == "workspace_switch":
-        m = re.search(r"workspace\s+([0-9]+|[a-zA-Z]+)", text, re.I)
+        m = re.search(r"workspace\s+([0-9]+|[a-zA-Z]+)", cmd_text, re.I)
         if m:
             val = parse_number(m.group(1))
             if val is not None and 1 <= val <= 10:
                 params["workspace"] = int(val)
         if "workspace" not in params:
-            m2 = re.search(r"([0-9]+|[a-zA-Z]+)\s+workspace", text, re.I)
+            m2 = re.search(r"([0-9]+|[a-zA-Z]+)\s+workspace", cmd_text, re.I)
             if m2:
                 val = parse_number(m2.group(1))
                 if val is not None and 1 <= val <= 10:
                     params["workspace"] = int(val)
         if "workspace" not in params:
-            nums = re.findall(r"\b([1-9]|10)\b", text)
+            nums = re.findall(r"\b([1-9]|10)\b", cmd_text)
             if nums:
                 params["workspace"] = int(nums[0])
             else:
                 for word, val in _NUMBER_WORDS.items():
-                    if 1 <= val <= 10 and re.search(r"\b" + word + r"\b", text, re.I):
+                    if 1 <= val <= 10 and re.search(r"\b" + word + r"\b", cmd_text, re.I):
                         params["workspace"] = val
                         break
 
     elif intent_id == "omarchy_theme_set":
-        m = _THEME_NAME_RE.search(text)
+        m = _THEME_NAME_RE.search(cmd_text)
         if m:
             theme_candidate = m.group(1).strip()
             params["theme"] = theme_candidate
@@ -298,11 +300,23 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
                 "everforest", "nord", "kanagawa", "rose pine", "miasma", "matte black",
                 "lumon", "lupine", "solitude", "white", "ash", "aamis", "aether", "ethereal"
             ]
-            lower = text.lower()
+            lower = cmd_text.lower()
             for kt in known_themes:
                 if kt in lower:
                     params["theme"] = kt.title()
                     break
+
+    elif intent_id == "omarchy_wallpaper_set":
+        quoted = re.search(r"""["']([^"']+)["']""", cmd_text)
+        path_match = re.search(
+            r"((?:~|/|\./)[^\s,;\"']+|[A-Za-z0-9_.\-/]+\.(?:png|jpe?g|webp|avif|bmp|gif))",
+            cmd_text,
+            re.I,
+        )
+        if quoted:
+            params["path"] = quoted.group(1).strip()
+        elif path_match:
+            params["path"] = path_match.group(1).strip()
 
     elif intent_id == "flash_note_add":
         m = _NOTE_RE.search(text)
@@ -320,7 +334,7 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
 
     elif intent_id in ("study_traps_view", "study_sprint_start"):
         # Match chapter codes like phy_01, che_02, chem_02, mat_03, math_03 or chapter names
-        code_match = re.search(r"\b(phy|che|chem|mat|math)[_-]?(\d{1,2})\b", text, re.I)
+        code_match = re.search(r"\b(phy|che|chem|mat|math)[_-]?(\d{1,2})\b", cmd_text, re.I)
         if code_match:
             raw_subj = code_match.group(1).lower()
             subj_map = {"che": "chem", "chem": "chem", "mat": "math", "math": "math", "phy": "phy"}
@@ -328,9 +342,11 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
             num = int(code_match.group(2))
             params["chapter"] = f"{subj}_{num:02d}"
         else:
-            m = _CHAPTER_RE.search(text)
+            m = _CHAPTER_RE.search(cmd_text)
             if m:
                 params["chapter"] = m.group(1).strip()
+            elif intent_id == "study_sprint_start":
+                params["chapter"] = ""
 
     elif intent_id == "launch_browser":
         # Preserve the literal URL, including case, query and fragment. Never
@@ -340,12 +356,6 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
             params["url"] = match.group(0)
 
     elif intent_id == "engine_switch":
-        lower = text.lower()
-        if "opencode" in lower or "open code" in lower or "open-code" in lower:
-            params["engine"] = "opencode"
-        elif "antigravity" in lower or "anti-gravity" in lower or "agy" in lower:
-            params["engine"] = "agy"
-        elif "lyra" in lower:
-            params["engine"] = "lyra"
+        params["engine"] = "agy"
 
     return params

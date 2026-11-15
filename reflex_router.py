@@ -35,10 +35,8 @@ _MUSIC_GENRE_ALIASES = {
 }
 
 # Coding/debugging language wins even when a command phrase appears later.
-# "open code" is exempt: it is the Antigravity/OpenCode engine name, and a bare
-# "open code" must reach the engine router instead of being mistaken for coding.
 _UNSAFE_CONTEXT = re.compile(
-    r"\b(?:fix|bug|script|why|how|explain)\b|\bwrite\s+a\b|\bwhat\s+is\b|(?<!\bopen[\s-])\bcode\b",
+    r"\b(?:fix|bug|script|why|how|explain)\b|\bwrite\s+a\b|\bwhat\s+is\b|\bcode\b",
     re.IGNORECASE,
 )
 _PERCENT = r"([0-9]+(?:\.[0-9]+)?|[a-zA-Z\s-]+?)\s*(?:%|\bpercent\b)?"
@@ -62,43 +60,6 @@ _NOTE_RE = re.compile(
     r"^(?:note\s+down|note\s+this\s+down|flash\s+note|take\s+a\s+note|quick\s+memo|add\s+note|jot\s+this\s+down)\s*:\s*(.+?)\s*$",
     re.I | re.S,
 )
-# Spoken "switch engine" grammar for the deterministic Tier-0 router. The
-# pattern is fullmatched against the normalized lowercase utterance: an
-# optional politeness wrapper, a verb, an optional pronoun ("switch me to ..."),
-# an optional leading role noun ("change MY ENGINE to opencode"), an optional
-# preposition, the target, an optional trailing role noun ("switch to X
-# ENGINE"), and an optional persistence tail ("... from now on", "... as the
-# default"). Both noun-around-target orderings are accepted, the preposition is
-# optional everywhere ("use X" == "use the X engine"), and the tail only fires
-# on explicit persistence requests so generic "make ..." utterances without a
-# target can never match.
-_ENGINE_VERB_RE = (
-    r"switch(?:ing)?|change(?:ing)?|swap(?:ping)?|shift(?:ing)?|move(?:ing)?|transfer(?:ring)?|"
-    r"flip(?:ping)?|toggle(?:ing)?|set(?:t?ing)?|rout(?:e|ing)|redirect|migrat(?:e|ing)|hop|jump|"
-    r"divert|mak(?:e|ing)|us(?:e|ing)|activat(?:e|ing)|enabl(?:e|ing)|engag(?:e|ing)|boot|"
-    r"start\s+using|go\s+with|stick\s+with|keep"
-)
-_ENGINE_ROLE_NOMINAL_RE = (
-    r"(?:(?:the|my|your|this|gideon's|jarvis's|cognitive)\s+)?"
-    r"(?:(?:cognitive\s+)?(?:engine|backend|brain|model|llm|reasoner|runtime|session|assistant)\s+)?"
-)
-# Named groups split the two engine targets so the caller can tell them apart.
-_ENGINE_TARGET_RE = (
-    r"(?:(?P<target>(?:opencode|open\s+code|open-code))|(?P<target_agy>(?:antigravity|anti-gravity|agy)))"
-)
-_ENGINE_SWITCH_RE = re.compile(
-    r"^(?:(?:can\s+you|could\s+you|would\s+you(?:\s+mind)?|please|just)\s+)?"
-    r"(?:" + _ENGINE_VERB_RE + r")"
-    r"(?:\s+me)?"
-    r"\s*" + _ENGINE_ROLE_NOMINAL_RE +
-    r"(?:to\s+|over\s+to\s+|over\s+|onto\s+|toward(?:s)?\s+)?"
-    r"(?:(?:the|my|your|this)\s+)?"
-    r"" + _ENGINE_TARGET_RE +
-    r"(?:\s+(?:the\s+|my\s+|your\s+)?(?:cognitive\s+)?(?:engine|backend|brain|model|llm|reasoner|runtime|session|assistant))?"
-    r"(?:\s+(?:from\s+now\s+on|for\s+good|for\s+the\s+(?:rest|future)|as\s+the\s+default(?:\s+engine)?|please))?"
-    r"\s*$",
-    re.I,
-)
 _WINDOW_CONTROL_MAP = {
     "focus window left": ["hyprctl", "dispatch", "movefocus", "l"],
     "focus window right": ["hyprctl", "dispatch", "movefocus", "r"],
@@ -107,6 +68,16 @@ _WINDOW_CONTROL_MAP = {
     "toggle fullscreen": ["hyprctl", "dispatch", "fullscreen", "1"],
     "close active window": ["hyprctl", "dispatch", "killactive"],
 }
+_AGENT_WORKSPACE_PHRASES = frozenset({
+    "show me what you're doing",
+    "show me what you are doing",
+    "show agent workspace",
+    "show the agent workspace",
+    "toggle agent workspace",
+    "hide agent workspace",
+    "hide the agent workspace",
+})
+_AGENT_WORKSPACE_ARGV = ["hyprctl", "dispatch", 'hl.dsp.workspace.toggle_special("agent")']
 _AUDIO_OUTPUT_MAP = {
     "switch audio to headphones": "GIDEON_HEADPHONES_SINK",
     "switch audio to speakers": "GIDEON_SPEAKERS_SINK",
@@ -198,6 +169,30 @@ _MAX_GRAPH_QUERY_CHARS = 160
 _MAX_MUSIC_VALUE_CHARS = 80
 _GRAPH_TASKS: set[asyncio.Task[Any]] = set()
 
+_FOCUS_STOP_RE = re.compile(
+    r"^(?:please\s+)?(?:stop|end|exit|quit|cancel|turn\s+off|disable)\s+(?:the\s+|my\s+)?focus\s+(?:mode|session|timer)$",
+    re.I,
+)
+_FOCUS_STATUS_RE = re.compile(
+    r"^(?:(?:check|what(?:'s|\s+is)|how\s+much)\s+)?(?:(?:my|the)\s+)?focus(?:\s+mode|\s+session)?\s+(?:status|time(?:\s+left|\s+remaining)?)$|^am\s+i\s+in\s+focus\s+mode$",
+    re.I,
+)
+_FOCUS_START_RE = re.compile(
+    r"^(?:please\s+)?(?:(?:start|begin|enable|turn\s+on|enter)\s+(?:a\s+)?focus\s+(?:mode|session)|focus\s+mode\s+on)"
+    r"(?:\s+for\s+(?P<num>an?|\d+(?:\.\d+)?|[a-z-]+(?:\s+[a-z-]+)?)\s*(?P<unit>minutes?|mins?|hours?|hrs?))?"
+    r"(?:\s+(?:for|on|about)\s+(?P<goal>.+))?$",
+    re.I,
+)
+_FOCUS_PREFIX_START_RE = re.compile(
+    r"^(?:please\s+)?(?:start|begin)\s+(?:a\s+)?(?P<num>an?|\d+(?:\.\d+)?|[a-z-]+(?:\s+[a-z-]+)?)\s*"
+    r"(?P<unit>minute|min|hour|hr)\s+focus\s+(?:mode|session)(?:\s+(?:for|on|about)\s+(?P<goal>.+))?$",
+    re.I,
+)
+_DEBUG_BUNDLE_RE = re.compile(
+    r"^(?:please\s+)?(?:create|generate|export|save|dump|make|collect)\s+(?:a\s+|the\s+)?(?:gideon\s+)?debug\s+(?:bundle|logs|report)$|^gideon\s+debug\s+bundle$",
+    re.I,
+)
+
 _NUMBER_WORDS: dict[str, int] = {
     "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
     "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -223,7 +218,10 @@ def _parse_number(token: str | None) -> float | None:
     total = 0.0
     matched = False
     for w in words:
-        if w in _NUMBER_WORDS:
+        if w == "hundred":
+            total = (total if matched else 1.0) * 100.0
+            matched = True
+        elif w in _NUMBER_WORDS:
             total += _NUMBER_WORDS[w]
             matched = True
         elif w.isdigit():
@@ -438,6 +436,13 @@ def parse_command(text: str) -> dict[str, Any] | None:
         action = media[value]
         return {"intent": "media_control", "action": action, "summary": f"media {action}"}
 
+    if value in _AGENT_WORKSPACE_PHRASES:
+        return {
+            "intent": "system_action",
+            "argv": list(_AGENT_WORKSPACE_ARGV),
+            "summary": "toggle agent workspace",
+        }
+
     match = _WORKSPACE_RE.fullmatch(value)
     if match:
         target_str = (match.group(1) or match.group(2) or "").strip().lower()
@@ -491,17 +496,32 @@ def parse_command(text: str) -> dict[str, Any] | None:
         device = value.rsplit(" ", 1)[-1]
         return {"intent": "system_action", "argv": ["wpctl", "set-default", sink], "summary": f"audio output switched to {device}"}
 
-    engines = {
-        "switch to opencode": "opencode", "use opencode engine": "opencode", "engine opencode": "opencode",
-        "switch to antigravity": "agy", "switch to agy": "agy", "use antigravity engine": "agy", "engine agy": "agy",
-    }
-    if value in engines:
-        name = engines[value]
-        return {"intent": "engine_switch", "engine": name, "summary": f"switched to {'OpenCode' if name == 'opencode' else 'Antigravity'}"}
-    engine_match = _ENGINE_SWITCH_RE.fullmatch(value)
-    if engine_match:
-        name = "opencode" if engine_match.group("target") else "agy"
-        return {"intent": "engine_switch", "engine": name, "summary": f"switched to {'OpenCode' if name == 'opencode' else 'Antigravity'}"}
+    if _FOCUS_STOP_RE.fullmatch(value):
+        return {"intent": "focus_stop", "summary": "focus mode stopped"}
+
+    if _FOCUS_STATUS_RE.fullmatch(value):
+        return {"intent": "focus_status", "summary": "focus status"}
+
+    focus_match = _FOCUS_START_RE.fullmatch(value) or _FOCUS_PREFIX_START_RE.fullmatch(value)
+    if focus_match:
+        num_raw = (focus_match.group("num") or "").strip().lower()
+        unit_raw = (focus_match.group("unit") or "min").strip().lower()
+        goal = (focus_match.group("goal") or "").strip()
+        minutes: float | None = None
+        if num_raw:
+            parsed_num = 1.0 if num_raw in ("a", "an") else _parse_number(num_raw)
+            if parsed_num is not None and parsed_num > 0:
+                minutes = parsed_num * 60.0 if unit_raw.startswith(("hour", "hr")) else parsed_num
+        return {
+            "intent": "focus_start",
+            "minutes": minutes,
+            "goal": goal,
+            "summary": f"focus mode {int(minutes) if minutes else 25}m",
+        }
+
+    if _DEBUG_BUNDLE_RE.fullmatch(value):
+        return {"intent": "debug_bundle", "summary": "debug bundle saved"}
+
     return None
 
 
@@ -518,6 +538,8 @@ def _to_hypr_lua(argv: list[str]) -> str | None:
         return "hl.dsp.window.fullscreen()"
     if len(argv) >= 3 and argv[0] == "hyprctl" and argv[1] == "dispatch" and argv[2] == "killactive":
         return "hl.dsp.window.close()"
+    if len(argv) >= 3 and argv[0] == "hyprctl" and argv[1] == "dispatch" and argv[2].startswith("hl."):
+        return argv[2]
     return None
 
 
@@ -812,8 +834,12 @@ def get_pending_confirmation_store() -> PendingConfirmationStore:
     return _pending_confirmation_store
 
 
-async def _set_reflex_bus_state(bus: Any, label_text: str) -> None:
+async def _set_reflex_bus_state(bus: Any, label_text: str, *, preserve_hotmic: bool = False) -> None:
     if bus is None:
+        return
+    if preserve_hotmic:
+        if type(bus).__name__ == "SignalBus":
+            await _await_if_needed(bus.set_state("hotmic", f"⚡ BGE: {label_text}"))
         return
     if type(bus).__name__ == "SignalBus":
         label = f"⚡ BGE: {label_text}"
@@ -971,23 +997,16 @@ async def try_reflex(
                         await _arm_hot_mic_if_available(bus, timeout_s=CONFIRMATION_EXPIRY_S)
                         elapsed_ms = (time.perf_counter() - started) * 1000
                         logger.info("[Tier-1 Confirmation Needed] %s (%s, %.1fms): %s", intent, risk_tier, elapsed_ms, question)
-                        await _set_reflex_bus_state(bus, question)
+                        await _set_reflex_bus_state(bus, question, preserve_hotmic=True)
                         return True
                     await _speak_cancelled_if_needed()
                     if intent == "engine_switch":
                         target_engine = res.data.get("params", {}).get("engine", "antigravity")
-                        # Tier-1 BGE can surface either alias; the engine switcher
-                        # only accepts {"agy", "opencode"}.
                         if target_engine in ("antigravity", "anti-gravity"):
                             target_engine = "agy"
-                        if target_engine not in ("agy", "opencode"):
-                            logger.warning("Tier-1 engine_switch: unknown engine %r; falling through", target_engine)
-                            return False
-                        if set_engine is not None:
-                            if not await _await_if_needed(set_engine(target_engine)):
-                                # A failed switch must not be acked as handled.
-                                logger.warning("Tier-1 engine switch to %s failed; falling through", target_engine)
-                                return False
+                        if target_engine != "agy":
+                            logger.info("Tier-1 engine_switch: unsupported engine %r; Antigravity is the active engine", target_engine)
+                            res.message = "Antigravity is the only active engine."
                     if tts is not None:
                         play = getattr(tts, "play_sound", None)
                         if play:
@@ -1006,6 +1025,7 @@ async def try_reflex(
 
     await _speak_cancelled_if_needed()
     intent = action["intent"]
+    speech_msg: str | None = None
     try:
         if intent == "graph_query":
             query = action["query"]
@@ -1021,11 +1041,30 @@ async def try_reflex(
             with destination.open("a", encoding="utf-8") as file:
                 file.write(f"- **[{stamp}]** {action['body']}\n")
             summary = "note saved"
-        elif intent == "engine_switch":
-            if set_engine is None:
-                return False
-            await _await_if_needed(set_engine(action["engine"]))
-            summary = action["summary"]
+            speech_msg = "Note saved."
+        elif intent == "focus_start":
+            from focus_mode import get_focus_manager
+            mgr = get_focus_manager(bus=bus, tts=tts)
+            res = mgr.start(duration_minutes=action.get("minutes"), goal=action.get("goal", ""))
+            mins = int(round(res.get("duration_minutes", 25)))
+            summary = f"focus {mins}m"
+            speech_msg = res["message"]
+        elif intent == "focus_stop":
+            from focus_mode import get_focus_manager
+            res = get_focus_manager(bus=bus, tts=tts).stop()
+            summary = "focus stopped"
+            speech_msg = res["message"]
+        elif intent == "focus_status":
+            from focus_mode import get_focus_manager
+            res = get_focus_manager(bus=bus, tts=tts).status()
+            summary = "focus status"
+            speech_msg = res["message"]
+        elif intent == "debug_bundle":
+            from gideon_debug import collect_debug_bundle
+            out_path, _bundle_summary = await asyncio.to_thread(collect_debug_bundle)
+            summary = f"debug bundle {out_path.name}"
+            speech_msg = f"Debug bundle saved to {out_path.parent.name} as {out_path.name}."
+            logger.info("[DebugBundle] %s", out_path)
         elif intent == "media_control":
             from handlers_system import run_media_action
             result = await run_media_action(action["action"])
@@ -1034,9 +1073,9 @@ async def try_reflex(
                 return False
             summary = action["summary"]
         elif intent == "app_launch":
-            from gideon_handler import INTENT_DISPATCH_MAP
+            from gideon_handler import INTENT_DISPATCH_MAP, TIER0_EXTRA_HANDLERS
             app_intent = action["app"]
-            handler = INTENT_DISPATCH_MAP.get(app_intent)
+            handler = INTENT_DISPATCH_MAP.get(app_intent) or TIER0_EXTRA_HANDLERS.get(app_intent)
             if not handler:
                 return False
             result = await handler({}, raw_text=text)
@@ -1044,6 +1083,7 @@ async def try_reflex(
                 logger.warning("Tier-0 app launch failed: %s", result.error)
                 return False
             summary = result.message
+            speech_msg = summary
         elif intent == "music_play":
             if action.get("kind") == "any":
                 argv = [MUSIC_BIN, "play", "--shuffle", "--limit", "50"]
@@ -1067,18 +1107,10 @@ async def try_reflex(
             play = getattr(tts, "play_sound", None)
             if play:
                 await _await_if_needed(play("acknowledged.wav"))
-            if intent == "flash_note":
+            if speech_msg:
                 speak = getattr(tts, "speak", None)
                 if speak:
-                    await _await_if_needed(speak("Note saved."))
-            elif intent == "app_launch":
-                speak = getattr(tts, "speak", None)
-                if speak and summary:
-                    await _await_if_needed(speak(summary))
-            elif intent == "engine_switch":
-                speak = getattr(tts, "speak", None)
-                if speak:
-                    await _await_if_needed(speak("Switched to OpenCode." if action["engine"] == "opencode" else "Switched to Antigravity."))
+                    await _await_if_needed(speak(speech_msg))
         elapsed_ms = (time.perf_counter() - started) * 1000
         logger.info("[Tier-0 Reflex] %s (%.1fms): %s", intent, elapsed_ms, summary)
         if bus is not None:

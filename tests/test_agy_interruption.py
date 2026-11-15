@@ -1,9 +1,21 @@
 import asyncio
 import json
+import os
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from gideon import AntigravityEngine, AudioStreamRecorder, GIDEON_VOICE_PREAMBLE
+from gideon import (
+    AntigravityEngine,
+    AudioStreamRecorder,
+    BROWSER_DIRECTIVE,
+    CODING_DIRECTIVE,
+    CONVERSATION_DIRECTIVE,
+    GIDEON_VOICE_PREAMBLE,
+    TTSPlayer,
+    _FishStream,
+    _resolve_agy_model,
+    classify_turn_directive,
+)
 
 
 class TestInterruption(unittest.IsolatedAsyncioTestCase):
@@ -280,3 +292,333 @@ class TestInterruption(unittest.IsolatedAsyncioTestCase):
     def test_observed_browser_guardrails(self):
         for phrase in ('observed tab', 'exact URL', 'verify', 'NEVER invent'):
             self.assertIn(phrase, GIDEON_VOICE_PREAMBLE)
+
+    async def test_start_pins_flash_model_and_rejects_startup_error_result(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('GIDEON_AGY_MODEL', None)
+            self.assertEqual(_resolve_agy_model('low'), 'gemini-3.8-flash-low')
+            self.assertEqual(_resolve_agy_model('medium'), 'gemini-3.8-flash-medium')
+            self.assertEqual(_resolve_agy_model('high'), 'gemini-3.8-flash-high')
+            self.assertEqual(_resolve_agy_model('xhigh'), 'gemini-3.8-flash-high')
+            self.assertEqual(_resolve_agy_model('max'), 'gemini-3.8-flash-high')
+
+        replacement = self.replacement_process()
+        with patch('gideon.asyncio.create_subprocess_exec', AsyncMock(return_value=replacement)) as spawn, \
+                patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('GIDEON_AGY_MODEL', None)
+            await self.engine.start(effort='low')
+        args = spawn.call_args.args
+        self.assertIn('--model', args)
+        self.assertEqual(args[args.index('--model') + 1], 'gemini-3.8-flash-low')
+        self.assertIn('--effort', args)
+        self.assertEqual(args[args.index('--effort') + 1], 'low')
+
+        bad = MagicMock(returncode=1)
+        bad.wait = AsyncMock(return_value=1)
+        bad.stdout = asyncio.StreamReader()
+        bad.stdout.feed_data(
+            b'{"event":"result","result":{"status":"ERROR","error":"bad model quota"}}\n'
+        )
+        bad.stdout.feed_eof()
+        bad.stderr = asyncio.StreamReader()
+        bad.stderr.feed_data(b'error: bad model quota\n')
+        bad.stderr.feed_eof()
+        with patch('gideon.asyncio.create_subprocess_exec', AsyncMock(return_value=bad)), \
+                self.assertLogs('gideon', level='ERROR') as logs:
+            with self.assertRaises(RuntimeError) as ctx:
+                await self.engine.start(effort='low')
+        self.assertIn('bad model quota', str(ctx.exception))
+        self.assertIn('error: bad model quota', '\n'.join(logs.output))
+
+    async def test_start_retries_without_effort_when_custom_model_rejects_effort(self):
+        rejected = MagicMock(returncode=1)
+        rejected.wait = AsyncMock(return_value=1)
+        rejected.stdout = asyncio.StreamReader()
+        rejected.stdout.feed_data(
+            b'{"event":"result","result":{"status":"ERROR","error":"--effort is not supported for the current model"}}\n'
+        )
+        rejected.stdout.feed_eof()
+        rejected.stderr = asyncio.StreamReader()
+        rejected.stderr.feed_eof()
+
+        accepted = self.replacement_process()
+        with patch.dict(os.environ, {'GIDEON_AGY_MODEL': 'custom-model'}), \
+                patch('gideon.asyncio.create_subprocess_exec', AsyncMock(side_effect=[rejected, accepted])) as spawn:
+            await self.engine.start(effort='low')
+        self.assertEqual(spawn.call_count, 2)
+        self.assertIn('--effort', spawn.call_args_list[0].args)
+        self.assertNotIn('--effort', spawn.call_args_list[1].args)
+        self.assertEqual(spawn.call_args_list[1].args[spawn.call_args_list[1].args.index('--model') + 1], 'custom-model')
+
+    async def test_account_change_restarts_idle_engine_and_clears_conversation(self):
+        first = self.replacement_process()
+        second = self.replacement_process()
+        with patch('gideon._read_active_antigravity_account', side_effect=['first@example.com', 'other@gmail.com', 'other@gmail.com', 'other@gmail.com']), \
+                patch('gideon.asyncio.create_subprocess_exec', AsyncMock(side_effect=[first, second])) as spawn:
+            await self.engine.start(effort='low')
+            self.assertEqual(self.engine.conversation_id, 'saved-chat')
+            self.assertEqual(self.engine._auth_account, 'first@example.com')
+            await self.engine.send_prompt('Hello')
+        self.assertEqual(spawn.call_count, 2)
+        self.assertNotIn('--conversation', spawn.call_args_list[1].args)
+        self.assertEqual(self.engine._auth_account, 'other@gmail.com')
+        first.terminate.assert_called_once()
+        second.stdin.write.assert_called_once()
+
+    async def test_rapid_post_init_crashes_pause_auto_reconnect_until_next_prompt(self):
+        with patch('gideon.asyncio.create_subprocess_exec', AsyncMock(side_effect=lambda *a, **k: self.replacement_process())), \
+                patch.object(self.engine, '_reconnect_backoff', AsyncMock()):
+            await self.engine.start(effort='low')
+            for _ in range(2):
+                proc = self.engine.proc
+                proc.returncode = 1
+                self.assertTrue(await self.engine._ensure_engine_alive(failed_proc=proc))
+            crashed = self.engine.proc
+            crashed.returncode = 1
+            self.assertFalse(await self.engine._ensure_engine_alive(failed_proc=crashed))
+        self.assertIn('keeps dropping', self.bus.current_reply)
+
+        recovery = self.replacement_process()
+        with patch('gideon.asyncio.create_subprocess_exec', AsyncMock(return_value=recovery)):
+            await self.engine.send_prompt('Try again')
+        recovery.stdin.write.assert_called_once()
+
+    async def test_tts_player_returns_to_idle_and_suppresses_interrupt_error_log(self):
+        bus = MagicMock(current_state='idle')
+
+        def _set_state(state, detail=''):
+            bus.current_state = state
+
+        bus.set_state.side_effect = _set_state
+        player = TTSPlayer(bus)
+
+        ok_proc = MagicMock(returncode=0)
+        ok_proc.poll.return_value = 0
+        ok_proc.communicate.return_value = (b'', b'')
+        with patch('gideon.subprocess.Popen', return_value=ok_proc):
+            await player.play_wav(b'RIFFfake', text='Hello')
+        self.assertEqual(bus.current_state, 'idle')
+
+        killed_proc = MagicMock(returncode=-15)
+        killed_proc.poll.return_value = None
+
+        def _communicate(_wav):
+            player._interrupted_procs.add(killed_proc)
+            return (b'', b'Terminated')
+
+        killed_proc.communicate.side_effect = _communicate
+        with patch('gideon.subprocess.Popen', return_value=killed_proc), \
+                patch('gideon.logger.error') as log_err:
+            await player.play_wav(b'RIFFfake', text='Interrupted')
+        log_err.assert_not_called()
+
+    async def test_tts_player_preserves_toolcall_state_while_tool_is_running(self):
+        bus = MagicMock(
+            current_state='toolcall',
+            current_tool={'id': 't_1', 'name': 'run_command', 'label': 'run_command: ls', 'status': 'running'},
+        )
+        states = []
+
+        def _set_state(state, detail=''):
+            bus.current_state = state
+            states.append((state, detail))
+
+        bus.set_state.side_effect = _set_state
+        player = TTSPlayer(bus)
+
+        ok_proc = MagicMock(returncode=0)
+        ok_proc.poll.return_value = 0
+        ok_proc.communicate.return_value = (b'', b'')
+        with patch('gideon.subprocess.Popen', return_value=ok_proc):
+            await player.play_wav(b'RIFFfake', text='On it')
+
+        self.assertEqual(bus.current_state, 'toolcall')
+        self.assertNotIn('speaking', [s for s, _ in states])
+        self.assertNotIn('idle', [s for s, _ in states])
+        self.assertEqual(states[-1], ('toolcall', 'run_command: ls'))
+
+    async def test_tts_player_returns_to_conversing_while_turn_is_active(self):
+        bus = MagicMock(current_state='toolcall', current_tool=None)
+        bus.engine = MagicMock(is_turn_active=True)
+        states = []
+
+        def _set_state(state, detail=''):
+            bus.current_state = state
+            states.append((state, detail))
+
+        bus.set_state.side_effect = _set_state
+        player = TTSPlayer(bus)
+
+        ok_proc = MagicMock(returncode=0)
+        ok_proc.poll.return_value = 0
+        ok_proc.communicate.return_value = (b'', b'')
+        with patch('gideon.subprocess.Popen', return_value=ok_proc):
+            await player.play_wav(b'RIFFfake', text='Still running')
+
+        self.assertEqual(bus.current_state, 'conversing')
+        self.assertNotIn('idle', [s for s, _ in states])
+
+    async def test_dynamic_directive_injection_for_browser_and_coding_intents(self):
+        import reflex_router
+
+        browser_disp = MagicMock()
+        browser_disp.predict.return_value = ('browser_use_passthrough', 0.99, None)
+        self.assertEqual(classify_turn_directive('check my instagram dms', dispatcher=browser_disp), BROWSER_DIRECTIVE)
+
+        coding_disp = MagicMock()
+        coding_disp.predict.return_value = ('hard_goal', 0.99, None)
+        self.assertEqual(classify_turn_directive('fix the bug in gideon.py', dispatcher=coding_disp), CODING_DIRECTIVE)
+
+        conv_disp = MagicMock()
+        conv_disp.predict.return_value = ('conversation', 0.99, None)
+        self.assertEqual(classify_turn_directive('how are you doing', dispatcher=conv_disp), CONVERSATION_DIRECTIVE)
+
+        with patch.object(reflex_router, '_gideon_dispatcher_instance', browser_disp):
+            await self.engine.send_prompt('check my instagram dms')
+            payload1 = json.loads(self.engine.proc.stdin.write.call_args_list[-1].args[0])
+            self.assertIn(GIDEON_VOICE_PREAMBLE, payload1['message']['content'])
+            self.assertIn(BROWSER_DIRECTIVE, payload1['message']['content'])
+
+        with patch.object(reflex_router, '_gideon_dispatcher_instance', coding_disp):
+            await self.engine.send_prompt('fix the bug in gideon.py')
+            payload2 = json.loads(self.engine.proc.stdin.write.call_args_list[-1].args[0])
+            self.assertNotIn(GIDEON_VOICE_PREAMBLE, payload2['message']['content'])
+            self.assertIn(CODING_DIRECTIVE, payload2['message']['content'])
+
+    def test_special_agent_workspace_reveal_reflex(self):
+        import reflex_router
+
+        for phrase in (
+            "show me what you're doing",
+            "show agent workspace",
+            "toggle agent workspace",
+            "hide agent workspace",
+        ):
+            parsed = reflex_router.parse_command(phrase)
+            self.assertIsNotNone(parsed)
+            self.assertEqual(parsed['intent'], 'system_action')
+            self.assertEqual(parsed['argv'], ['hyprctl', 'dispatch', 'hl.dsp.workspace.toggle_special("agent")'])
+            self.assertEqual(reflex_router._to_hypr_lua(parsed['argv']), 'hl.dsp.workspace.toggle_special("agent")')
+
+    async def test_read_loop_tracks_agy_tool_active_and_done_events(self):
+        self.engine.is_turn_active = True
+        self.engine._pending_turns.append(self.engine._turn_generation)
+        states = []
+        self.bus.set_state = MagicMock(side_effect=lambda s, detail='': states.append((s, detail)))
+
+        events = [
+            json.dumps({
+                'event': 'step_update',
+                'step_update': {
+                    'step_type': 'tool',
+                    'state': 'ACTIVE',
+                    'tool_name': 'run_command',
+                    'tool_info': {'parameters': {'CommandLine': '~/.local/bin/music online "Hotel California"'}},
+                },
+            }).encode() + b'\n',
+            json.dumps({
+                'event': 'step_update',
+                'step_update': {
+                    'step_type': 'tool',
+                    'state': 'DONE',
+                    'tool_name': 'run_command',
+                    'tool_info': {'parameters': {'CommandLine': '~/.local/bin/music online "Hotel California"'}},
+                },
+            }).encode() + b'\n',
+            json.dumps({'event': 'result', 'result': {'status': 'OK'}}).encode() + b'\n',
+            b'',
+        ]
+
+        stdout = MagicMock()
+        stdout.readline = AsyncMock(side_effect=events)
+        proc = MagicMock(returncode=0, stdout=stdout)
+        self.engine.proc = proc
+
+        with patch.object(self.engine, '_ensure_engine_alive', AsyncMock()):
+            await self.engine._read_loop()
+
+        self.assertTrue(any(s == 'toolcall' and 'music online' in d for s, d in states), states)
+        self.assertEqual(self.bus.current_tool['status'], 'done')
+        self.assertEqual(self.bus.current_tool['name'], 'run_command')
+
+    async def test_read_loop_deduplicates_active_step_and_handles_tool_error(self):
+        self.engine.is_turn_active = True
+        self.engine._pending_turns.append(self.engine._turn_generation)
+        states = []
+        self.bus.set_state = MagicMock(side_effect=lambda s, detail='': states.append((s, detail)))
+
+        events = [
+            json.dumps({
+                'event': 'step_update',
+                'step_update': {
+                    'step_index': 7,
+                    'step_type': 'tool',
+                    'state': 'ACTIVE',
+                    'tool_name': 'run_command',
+                    'tool_info': {'parameters': {'CommandLine': 'echo one'}},
+                },
+            }).encode() + b'\n',
+            json.dumps({
+                'event': 'step_update',
+                'step_update': {
+                    'step_index': 7,
+                    'step_type': 'tool',
+                    'state': 'ACTIVE',
+                    'tool_name': 'run_command',
+                    'tool_info': {'parameters': {'CommandLine': 'echo one'}},
+                },
+            }).encode() + b'\n',
+            json.dumps({
+                'event': 'step_update',
+                'step_update': {
+                    'step_index': 7,
+                    'step_type': 'tool',
+                    'state': 'ERROR',
+                    'tool_name': 'run_command',
+                },
+            }).encode() + b'\n',
+            json.dumps({'event': 'result', 'result': {'status': 'OK'}}).encode() + b'\n',
+            b'',
+        ]
+
+        stdout = MagicMock()
+        stdout.readline = AsyncMock(side_effect=events)
+        self.engine.proc = MagicMock(returncode=0, stdout=stdout)
+
+        with patch.object(self.engine, '_ensure_engine_alive', AsyncMock()):
+            await self.engine._read_loop()
+
+        tool_entries = [s for s in states if s[0] == 'toolcall']
+        self.assertEqual(len(tool_entries), 1, states)
+        self.assertEqual(self.bus.current_tool['id'], 't_1')
+        self.assertEqual(self.bus.current_tool['status'], 'error')
+
+    async def test_cancelled_ws_stream_skips_http_fallback(self):
+        player = TTSPlayer(self.bus)
+        player.synthesize = AsyncMock(return_value=b'fake-wav')
+        stream = _FishStream(text='Never trigger HTTP after interrupt')
+        entered = asyncio.Event()
+        gate = asyncio.Event()
+
+        class _SlowConnect:
+            async def __aenter__(self):
+                entered.set()
+                await gate.wait()
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        fake_ws = MagicMock(connect=MagicMock(return_value=_SlowConnect()))
+        fake_msgpack = MagicMock()
+        try:
+            with patch.dict('sys.modules', {'websockets': fake_ws, 'msgpack': fake_msgpack}):
+                task = asyncio.create_task(player._run_ws_stream(stream))
+                stream.task = task
+                await asyncio.wait_for(entered.wait(), timeout=2.0)
+                task.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await task
+            player.synthesize.assert_not_awaited()
+            self.assertIsNone(stream.chunk_queue.get_nowait())
+        finally:
+            await player.close()

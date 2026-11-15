@@ -25,11 +25,9 @@ sys.path.insert(0, "/home/cat/gideon")
 import numpy as np  # noqa: E402
 
 import gideon as gideon_module  # noqa: E402
-import opencode_engine as opencode_engine_module  # noqa: E402
 from gideon import OPTIMAL_WHISPER_PROMPT as LIVE_WHISPER_PROMPT  # noqa: E402
 from gideon import AntigravityEngine, SignalBus, VoiceListener  # noqa: E402
 from gideon import clean_text_for_tts as live_clean_text_for_tts  # noqa: E402
-from opencode_engine import OpenCodeEngine  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Specifications
@@ -178,9 +176,12 @@ class TestSTTPromptTokenizer(unittest.TestCase):
 
         import faster_whisper
         try:
-            cls.model = faster_whisper.WhisperModel("turbo", device="cuda", compute_type="int8")
+            cls.model = faster_whisper.WhisperModel("turbo", device="cuda", compute_type="int8", local_files_only=True)
         except Exception:
-            cls.model = faster_whisper.WhisperModel("small.en", device="cpu", compute_type="int8")
+            try:
+                cls.model = faster_whisper.WhisperModel("small.en", device="cpu", compute_type="int8", local_files_only=True)
+            except Exception:
+                cls.model = faster_whisper.WhisperModel("small.en", device="cpu", compute_type="int8")
         cls.tokenizer = cls.model.hf_tokenizer
 
     def test_token_count_within_whisper_budget(self):
@@ -287,6 +288,30 @@ class TestLiveVoiceListenerTranscribe(unittest.TestCase):
         self.assertEqual(kwargs["initial_prompt"], LIVE_WHISPER_PROMPT)
         self.assertTrue(kwargs["vad_filter"])
         self.assertEqual(kwargs["vad_parameters"], {"min_silence_duration_ms": 300})
+
+    def test_live_parakeet_vad_segments_and_string_outputs(self):
+        class _ParakeetModel:
+            def __init__(self, out):
+                self._out = out
+                self.calls = []
+
+            def recognize(self, audio, sample_rate=16000):
+                self.calls.append((len(audio), sample_rate))
+                return self._out
+
+        seg_model = _ParakeetModel(iter([
+            type("Seg", (), {"text": " mute "})(),
+            type("Seg", (), {"text": "audio"})(),
+        ]))
+        listener = object.__new__(VoiceListener)
+        listener.backend = "parakeet"
+        listener.model = seg_model
+        self.assertEqual(listener.transcribe_audio(self._pcm()), "mute audio")
+        self.assertEqual(seg_model.calls, [(4000, 16000)])
+
+        str_model = _ParakeetModel("  set volume to fifty  ")
+        listener.model = str_model
+        self.assertEqual(listener.transcribe_audio(self._pcm()), "set volume to fifty")
 
 
 class TestHardenedWatchdog(unittest.TestCase):
@@ -478,98 +503,6 @@ class TestLiveAntigravityWatchdog(_LiveWatchdogMixin, unittest.TestCase):
 
     module = gideon_module
     engine_cls = AntigravityEngine
-
-
-class TestLiveOpenCodeWatchdog(_LiveWatchdogMixin, unittest.TestCase):
-    """FIX O4: exercises opencode_engine.OpenCodeEngine._watchdog_loop directly."""
-
-    module = opencode_engine_module
-    engine_cls = OpenCodeEngine
-
-
-class TestLiveOpenCodeSpeakSentence(unittest.TestCase):
-    """FIX O1/O2: live OpenCodeEngine sentence sanitization."""
-
-    def setUp(self):
-        self.bus = make_live_bus()
-        self.tts = MockTTSPlayer()
-        self.engine = OpenCodeEngine(bus=self.bus, tts=self.tts)
-
-    def test_live_sentence_end_regex_matches_gideon(self):
-        self.assertEqual(
-            opencode_engine_module._SENTENCE_END.pattern,
-            gideon_module._SENTENCE_END.pattern)
-        self.assertEqual(
-            opencode_engine_module._SENTENCE_END.flags,
-            gideon_module._SENTENCE_END.flags)
-
-    def test_live_speak_sentence_sanitizes(self):
-        self.engine._speak_sentence("Config saved to /home/cat/gideon/gideon.py.")
-        self.assertEqual(self.tts.queued_sentences, ["Config saved to gideon.py."])
-
-    def test_live_speak_sentence_redacts_urls_and_markdown(self):
-        self.engine._speak_sentence("Read **the docs** at https://github.com/x now.")
-        self.assertEqual(self.tts.queued_sentences, ["Read the docs at the linked website now."])
-
-    def test_live_speak_sentence_drops_planning_phrase(self):
-        self.engine._speak_sentence("Let me check the system uptime.")
-        self.assertEqual(self.tts.queued_sentences, [])
-
-    def test_live_speak_sentence_drops_whitespace(self):
-        self.engine._speak_sentence("   ")
-        self.assertEqual(self.tts.queued_sentences, [])
-
-    def test_live_speak_sentence_matches_sanitizer_output(self):
-        raw = "### Status: **All systems** are `online` & running—ready for commands."
-        self.engine._speak_sentence(raw)
-        self.assertEqual(self.tts.queued_sentences, [live_clean_text_for_tts(raw)])
-
-
-class TestLiveOpenCodeEventHandling(unittest.TestCase):
-    """FIX O3/O4: live OpenCodeEngine.current_tool lifecycle via _handle_event."""
-
-    def setUp(self):
-        self.bus = make_live_bus()
-        self.tts = MockTTSPlayer()
-        self.engine = OpenCodeEngine(bus=self.bus, tts=self.tts)
-        self.engine.session_id = "ses_test"
-
-    def test_live_step_started_populates_dict_and_toolcall_state(self):
-        self.engine._handle_event("session.step.started", {"agent": "build"})
-        self.assertEqual(self.engine.current_tool,
-                         {"name": "build", "label": "build", "status": "running"})
-        self.assertEqual(self.bus.current_state, "toolcall")
-        self.assertEqual(self.bus.current_detail, "build")
-
-    def test_live_step_started_defaults_agent(self):
-        self.engine._handle_event("session.step.started", {})
-        self.assertEqual(self.engine.current_tool,
-                         {"name": "tool", "label": "working on the solution", "status": "running"})
-
-    def test_live_text_delta_marks_tool_done_and_thinking(self):
-        self.engine._handle_event("session.step.started", {"agent": "build"})
-        self.engine._handle_event("session.text.delta", {"delta": "Hello. "})
-        self.assertEqual(self.engine.current_tool["status"], "done")
-        self.assertEqual(self.bus.current_state, "thinking")
-        self.assertIn("Hello.", self.engine._sentence_buffer)
-
-    def test_live_send_prompt_and_interrupt_reset_tool(self):
-        self.engine.current_tool = {"name": "x", "status": "running"}
-        asyncio.run(self.engine.interrupt())
-        self.assertIsNone(self.engine.current_tool)
-
-        self.engine.current_tool = {"name": "x", "status": "running"}
-        self.engine._client = None
-        with self.assertRaises(RuntimeError):
-            asyncio.run(self.engine.send_prompt("hi"))
-        self.assertIsNone(self.engine.current_tool)
-
-    def test_live_finish_turn_resets_tool(self):
-        self.engine.current_tool = {"name": "x", "status": "running"}
-        self.engine.is_turn_active = True
-        asyncio.run(self.engine._finish_turn("test"))
-        self.assertIsNone(self.engine.current_tool)
-        self.assertFalse(self.engine.is_turn_active)
 
 
 if __name__ == "__main__":

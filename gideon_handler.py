@@ -17,6 +17,7 @@ import json
 import logging
 from pathlib import Path
 import re
+import time
 from typing import Any, Callable, Coroutine, Dict, Optional, Tuple
 
 import numpy as np
@@ -151,7 +152,6 @@ INTENT_DISPATCH_MAP: Dict[str, Callable[[Dict[str, Any], str], Coroutine[Any, An
     "launch_obsidian": handle_launch_obsidian,
     "launch_code": handle_launch_code,
     "launch_file_manager": handle_launch_file_manager,
-    "launch_learnharness": handle_launch_learnharness,
 
     # Omarchy & Desktop
     "omarchy_theme_list": handle_omarchy_theme_list,
@@ -191,6 +191,11 @@ INTENT_DISPATCH_MAP: Dict[str, Callable[[Dict[str, Any], str], Coroutine[Any, An
     "browser_use_passthrough": handle_browser_use_passthrough,
 }
 
+# Deterministic Tier-0 app launches not represented in the 65-class ONNX head
+TIER0_EXTRA_HANDLERS: Dict[str, Any] = {
+    "launch_learnharness": handle_launch_learnharness,
+}
+
 _NEGATION_RE = re.compile(
     r"\b(don't|dont|do not|never|cancel|undo|avoid|refrain|abort)\b",
     re.I,
@@ -227,14 +232,28 @@ class GideonDispatcher:
         self.id2label = {int(k): v for k, v in temp_data.get("id2label", {}).items()}
         self.label2id = {v: int(k) for k, v in self.id2label.items()}
 
-        # Load Tokenizer & ONNX Session
-        model_name = "BAAI/bge-small-en-v1.5"
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # Load local bundled tokenizer offline first to avoid HF network checks at boot
+        local_tok_dir = Path(__file__).resolve().parent / "models" / "bge_classifier"
+        if (local_tok_dir / "tokenizer.json").is_file():
+            self.tokenizer = AutoTokenizer.from_pretrained(str(local_tok_dir), local_files_only=True)
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5")
         
         opts = ort.SessionOptions()
         opts.intra_op_num_threads = 2
         opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         self.session = ort.InferenceSession(model_path, sess_options=opts, providers=["CPUExecutionProvider"])
+        self._last_prediction: Optional[Tuple[str, str, float, float]] = None
+
+    def peek_cached_intent(self, text: str, max_age_s: float = 10.0) -> Optional[str]:
+        """Return the last predicted intent if it matches `text` within `max_age_s`."""
+        cached = self._last_prediction
+        if not cached:
+            return None
+        cached_text, pred_label, _conf, ts = cached
+        if cached_text == text and (time.monotonic() - ts) <= max_age_s:
+            return pred_label
+        return None
 
     def predict(self, text: str) -> Tuple[str, float, np.ndarray]:
         """Classify utterance into an atomic intent with calibrated confidence.
@@ -256,6 +275,7 @@ class GideonDispatcher:
         pred_id = int(np.argmax(probs))
         pred_label = self.id2label[pred_id]
         confidence = float(probs[pred_id])
+        self._last_prediction = (text, pred_label, confidence, time.monotonic())
         return pred_label, confidence, probs
 
     async def dispatch(self, utterance: str, dry_run: bool = False, confirmed: bool = False) -> HandlerResult:

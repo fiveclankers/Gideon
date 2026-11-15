@@ -444,7 +444,7 @@
     }
   },
   "engine_switch": {
-    "description": "Switch active LLM runtime engine (opencode, antigravity, lyra)",
+    "description": "Report active Antigravity LLM runtime engine",
     "source_bucket": "engine_switch",
     "command_or_callable": "callable:switch_engine",
     "risk_tier": "safe",

@@ -205,15 +205,13 @@ ShellRoot {
 
     readonly property var activePreset: presets[orbState] ? presets[orbState] : presets.idle
 
-    // OpenCode thinking renders white; all other state colors come from activePreset.
-    readonly property bool whiteThinking: root.orbState === "thinking" && String(root.orbEngine).toLowerCase() === "opencode"
-    readonly property color effC1: root.whiteThinking ? "#ffffff" : root.activePreset.c1
-    readonly property color effC2: root.whiteThinking ? "#e2e8f0" : root.activePreset.c2
-    readonly property color effC3: root.whiteThinking ? "#0f172a" : root.activePreset.c3
+    readonly property color effC1: root.activePreset.c1
+    readonly property color effC2: root.activePreset.c2
+    readonly property color effC3: root.activePreset.c3
 
     readonly property string effectiveStatusLabel: {
         let d = String(stateDetail).trim()
-        d = d.replace(/[^\x00-\x7F\u2026]/g, "").trim()
+        d = d.replace(/[^\x00-\x7F\u2026\u26A1]/g, "").trim()
         if (d.length > 0) {
             // Priority 1: BGE reflex badge
             if (d.indexOf("BGE") !== -1) {
@@ -300,15 +298,17 @@ ShellRoot {
         }
     }
 
-    // Resilient Reconnect
+    // Resilient Reconnect with backoff when daemon is stopped
+    property int reconnectMisses: 0
     Timer {
         id: reconnectTimer
-        interval: 1500
+        interval: root.reconnectMisses >= 3 ? 6000 : 1500
         running: true
         repeat: true
         onTriggered: {
             const staleMs = Date.now() - root.lastMsgMs
             if (!root.sockLive || staleMs > 6000) {
+                root.reconnectMisses = Math.min(root.reconnectMisses + 1, 10)
                 if (!root.socketResetArmed) {
                     root.socketAlive = false
                     root.socketResetArmed = true
@@ -316,9 +316,12 @@ ShellRoot {
                     root.socketAlive = true
                     root.socketResetArmed = false
                 }
-            } else if (root.socketResetArmed) {
-                root.socketResetArmed = false
-                if (!root.socketAlive) root.socketAlive = true
+            } else {
+                root.reconnectMisses = 0
+                if (root.socketResetArmed) {
+                    root.socketResetArmed = false
+                    if (!root.socketAlive) root.socketAlive = true
+                }
             }
         }
     }
@@ -460,9 +463,9 @@ ShellRoot {
                 }
 
 
-                // Frame-rate driven dynamics
+                // Frame-rate driven dynamics (pauses when docked as quiet standby dot)
                 FrameAnimation {
-                    running: true
+                    running: !root.isHiding || root.orbState !== "idle" || orb.slideX < 73.5 || orb.rms > 0.005 || root.rmsTarget > 0.005
                     onTriggered: {
                         const dt = Math.min(frameTime, 0.05)
                         orb.time += dt

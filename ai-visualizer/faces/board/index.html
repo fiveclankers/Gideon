@@ -244,8 +244,8 @@ let bass=0;for(let k=0;k<6;k++)bass+=drive.b[k];bass/=6;const fl=bass-prevBass;p
 if(fl>.09&&fl>fluxAvg*2.2&&now-lastBeat>150){lastBeat=now;addWave(clamp(fl*3.2,.14,.7))}}
 
 /* ---------- frame loop ---------- */
-let last=performance.now(),frames=0,dtAcc=0,fpsN=0,fpsT=last,fps=60;
-function frame(now){const dt=Math.min(.033,Math.max(.001,(now-last)/1000));last=now;T+=dt;boot=Math.min(1,boot+dt/3);const bE=1-Math.pow(1-boot,3);
+let last=performance.now(),frames=0,dtAcc=0,fpsN=0,fpsT=last,fps=60,bE=1,switchingToOrb=false;
+function frame(now){const dt=Math.min(.033,Math.max(.001,(now-last)/1000));last=now;T+=dt;boot=Math.min(1,boot+dt/3);if(!switchingToOrb)bE=1-Math.pow(1-boot,3);
 computeDrive(dt,now);const vs=state==='idle'&&micOn&&micM.level>.14?'listening':state,tg=STATES[vs];
 for(const k of['r','noise','rot','ring','k','c','swirl','core'])cur[k]=sm(cur[k],tg[k],2.6,dt);
 for(const k of['col','col2','col3'])for(let i=0;i<3;i++)cur[k][i]=sm(cur[k][i],tg[k][i],2.2,dt);
@@ -359,6 +359,7 @@ $('mic').onclick=()=>{if(demoOn)demo(false);if(!micOn){clear();mic(true);setStat
 
 function switchToOrb(){
   if(demoOn)demo(false);
+  switchingToOrb=true;
   const start=performance.now(),dur=400,origR=R;
   function implode(now){
     const p=Math.min(1,(now-start)/dur);

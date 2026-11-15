@@ -298,8 +298,18 @@ async def handle_brightness_set(params: Dict[str, Any], raw_text: str = "") -> H
     return HandlerResult(ok=False, error=f"Brightness set failed: {err}")
 
 
-# Helper for Hyprland dispatch (supports both Lua DSL and classic syntax)
+# Helper for Hyprland dispatch (supports fast UDS socket + Lua DSL and classic fallback)
 async def _dispatch_hypr(lua_cmd: str, fallback_argv: list[str]) -> tuple[int, str, str]:
+    from reflex_router import hypr_socket_dispatch
+
+    sock_code, sock_out = await hypr_socket_dispatch(lua_cmd)
+    if sock_code == 0 and "error:" not in sock_out:
+        return 0, sock_out, ""
+    if len(fallback_argv) >= 3 and fallback_argv[:2] == ["hyprctl", "dispatch"]:
+        plain_cmd = " ".join(fallback_argv[2:])
+        sock_code, sock_out = await hypr_socket_dispatch(plain_cmd)
+        if sock_code == 0 and "error:" not in sock_out:
+            return 0, sock_out, ""
     code, out, err = await run_cmd_async(["hyprctl", "dispatch", lua_cmd])
     if code == 0 and "error:" not in out:
         return code, out, err

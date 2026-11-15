@@ -36,13 +36,13 @@ When executing desktop commands via `run_command`:
   - Volume down 10%: `wpctl set-volume @DEFAULT_AUDIO_SINK@ 10%-`
   - Set volume to N%: `wpctl set-volume @DEFAULT_AUDIO_SINK@ <N>%`
   - Mute/Unmute: `wpctl set-mute @DEFAULT_AUDIO_SINK@ 1` (or `0`)
-- **Local Music Library:**
-  - Mood: `music play --mood chill` (valid moods: `music moods`)
-  - Genre: `music play --genre jazz` (valid genres: `music genres`)
-  - Playlist: `music play --playlist "Focus"` (available: `music playlists`)
-  - Artist/search: `music play --artist "Arctic Monkeys"`; `music play --search "song name"`
-  - Controls: `music pause`; `music resume`; `music toggle`; `music next`; `music previous`; `music stop`
-  - State/volume: `music now`; `music status --json`; `music volume 40`; `music volume +10`; `music seek +30`
-  - Use `music` for the local library; `playerctl` remains the fallback for browser/YouTube. Do not invent mood names; use `music moods`.
+- **Music Library & Online Streaming:**
+  - Mood: `~/.local/bin/music play --mood chill` (valid moods: `chill`, `focus`, `energetic`, `uplifting`, `late-night`, `nostalgic`, `romantic`, `melancholy`)
+  - Genre: `~/.local/bin/music play --genre jazz` (valid genres: `rock`, `alternative`, `pop`, `hip-hop`, `rnb-soul`, `electronic`, `jazz`, `funk-disco`, `folk-acoustic`, `blues`, `metal`, `soundtrack`, `world`, `ambient-chill`)
+  - Playlist: `~/.local/bin/music play --playlist "Focus"`
+  - Artist/search: `~/.local/bin/music play --artist "Arctic Monkeys"`; `~/.local/bin/music play --search "song name" --online --json`
+  - Online/unique/vague: `~/.local/bin/music online "<artist song>" --json` (or pass up to 3 real track queries, or `--count 3` for mixes; see `gideon-music` skill)
+  - Controls: `~/.local/bin/music pause|resume|toggle|next|previous|stop|now|status|volume 40|seek +30`
+  - Never use `socat`, `ytdl://ytsearch:`, `mpv` directly, or `playerctl` for music. Do not invent mood names or run `--help`.
 - **Execution Speed:**
   Execute the exact single-line command immediately and report the outcome in 1 short spoken sentence. Do NOT run multi-turn loops or inspect tools recursively.
