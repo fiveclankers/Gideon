@@ -1,5 +1,7 @@
 ## graphify
 
+(Applies ONLY when the user explicitly asks to inspect or edit code inside `/home/cat/gideon` — skip on desktop, browser, file, or music voice tasks.)
+
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
 When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
@@ -28,8 +30,8 @@ When asked to send an Instagram DM:
 5. Do not prompt for confirmation or pause for multi-turn verification unless explicitly requested.
 
 ## Music Playback Directives
-- Never use generic `playerctl play` or `playerctl` toggles for music, never invoke `socat` on `/tmp/music-mpv.sock`, and never pass `ytdl://ytsearch:` to `mpv`. Follow the `gideon-music` skill and `~/.local/bin/music` directly.
-- For local music playback, use `~/.local/bin/music play --search "<query>"` (or `--artist`, `--genre`, `--mood`, `--playlist`). Add `--online` for local-first with YouTube Music fallback in one call. Never run `--help` to inspect syntax.
+- Never use generic `playerctl play` or `playerctl` toggles for music, never invoke `socat` on `/tmp/music-mpv.sock`, and never pass `ytdl://ytsearch:` to `mpv`. Execute `~/.local/bin/music` directly in ONE command — do NOT read `SKILL.md` or `.agents/rules/music.md`, and NEVER run `--help` first.
+- For local music playback, use `~/.local/bin/music play --search "<query>"` (or `--artist`, `--genre`, `--mood`, `--playlist`). Add `--online` for local-first with YouTube Music fallback in one call.
 - For non-local, unique, or vague online streams/queues, use `~/.local/bin/music online "<artist/song>" --json` (or `--count 3`, or up to 3 concrete track queries translated from the user's vibe). `music` manages `mpv`, unpauses, and verifies real playback before returning `0`.
 - For music daemon control, use `~/.local/bin/music pause|resume|toggle|next|previous|stop|status`.
 
@@ -44,14 +46,3 @@ When asked to send an Instagram DM:
 ## Web Component & Modern SPA Interaction Directives
 - Modern web frameworks (Polymer, React/Lexical, Lit, Angular, Shadow DOM components) often attach listeners to Pointer/Mouse events rather than basic DOM clicks.
 - Never rely on simple synthetic `.click()` or raw text injection on dynamic modern apps (YouTube, Meta/Instagram, GitHub, etc.). Always dispatch the complete pointer/mouse sequence (`pointerdown`, `mousedown`, `pointerup`, `mouseup`, `click`) or use driver-level hardware typing (`browser_type` with key events) to ensure actions penetrate shadow roots and trigger framework state changes.
-
-## Repository Map
-
-A full codemap is available at `codemap.md` in the project root.
-
-Before working on any task, read `codemap.md` to understand:
-- Project architecture and entry points
-- Directory responsibilities and design patterns
-- Data flow and integration points between modules
-
-For deep work on a specific folder, also read that folder's `codemap.md`.

@@ -6,6 +6,7 @@ import inspect
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -259,6 +260,13 @@ def ensure_hyprland_env() -> str | None:
     return None
 
 
+_MUSIC_NON_SEARCH_FILLERS = frozenset({
+    "more", "some more", "else", "something else", "anything else",
+    "new", "something new", "different", "something different",
+    "other", "another", "another song", "another track", "songs", "tracks",
+})
+
+
 def _clean_music_value(value: str) -> str | None:
     """Strip whitespace/quotes and reject unsafe or oversized music names."""
     cleaned = value.strip()
@@ -414,9 +422,10 @@ def parse_command(text: str) -> dict[str, Any] | None:
                 "value": "",
                 "summary": "play shuffled library",
             }
-        # Anything else is a local-library search. This keeps "play some
-        # Radiohead" out of the BGE media_play path, which resumes whatever else
-        # is already playing (e.g. YouTube).
+        # Anything else is a local-library search. Reject non-specific fillers
+        # like "more"/"else" so "play something else" escalates cleanly to LLM.
+        if music_value in _MUSIC_NON_SEARCH_FILLERS:
+            return None
         search_value = _clean_music_value(match.group(1))
         if search_value is not None:
             return {
@@ -663,22 +672,26 @@ def lyra_enabled() -> bool:
 
 _lyra_instance: Any = None
 _gideon_dispatcher_instance: Any = None
+_dispatcher_init_lock = threading.Lock()
 
 
 def get_gideon_dispatcher() -> Any | None:
-    """Lazily load the Tier-1 BGE-small INT8 ONNX dispatcher."""
+    """Lazily load the Tier-1 BGE-small INT8 ONNX dispatcher (thread-safe)."""
     global _gideon_dispatcher_instance
     if _gideon_dispatcher_instance is not None:
         return _gideon_dispatcher_instance if _gideon_dispatcher_instance is not False else None
-    try:
-        from gideon_handler import GideonDispatcher
-        _gideon_dispatcher_instance = GideonDispatcher()
-        logger.info("Initialized Tier-1 GideonDispatcher (BGE-small INT8 ONNX)")
-        return _gideon_dispatcher_instance
-    except Exception:
-        logger.exception("Unable to load Tier-1 GideonDispatcher")
-        _gideon_dispatcher_instance = False
-        return None
+    with _dispatcher_init_lock:
+        if _gideon_dispatcher_instance is not None:
+            return _gideon_dispatcher_instance if _gideon_dispatcher_instance is not False else None
+        try:
+            from gideon_handler import GideonDispatcher
+            _gideon_dispatcher_instance = GideonDispatcher()
+            logger.info("Initialized Tier-1 GideonDispatcher (BGE-small INT8 ONNX)")
+            return _gideon_dispatcher_instance
+        except Exception:
+            logger.exception("Unable to load Tier-1 GideonDispatcher")
+            _gideon_dispatcher_instance = False
+            return None
 
 
 def get_lyra_classifier() -> Any | None:
@@ -1001,12 +1014,27 @@ async def try_reflex(
                         return True
                     await _speak_cancelled_if_needed()
                     if intent == "engine_switch":
-                        target_engine = res.data.get("params", {}).get("engine", "antigravity")
-                        if target_engine in ("antigravity", "anti-gravity"):
+                        target_engine = res.data.get("params", {}).get("engine", "codex")
+                        if target_engine in ("antigravity", "anti-gravity", "anti gravity", "gemini"):
                             target_engine = "agy"
-                        if target_engine != "agy":
-                            logger.info("Tier-1 engine_switch: unsupported engine %r; Antigravity is the active engine", target_engine)
-                            res.message = "Antigravity is the only active engine."
+                        elif target_engine in ("gpt-6-luna", "luna", "gpt"):
+                            target_engine = "codex"
+                        if target_engine not in ("codex", "agy"):
+                            logger.info("Tier-1 engine_switch: unsupported engine %r; only Codex/Antigravity supported", target_engine)
+                            res.message = "Only Codex and Antigravity engines are supported."
+                        elif set_engine is not None:
+                            switched = await _await_if_needed(set_engine(target_engine))
+                            label = "Codex" if target_engine == "codex" else "Antigravity"
+                            res.message = f"Switched engine to {label}." if switched else f"Couldn't switch engine to {label}."
+                        else:
+                            active = getattr(bus, "engine_name", "codex") if bus is not None else "codex"
+                            active_label = "Antigravity" if active == "agy" else "Codex"
+                            target_label = "Antigravity" if target_engine == "agy" else "Codex"
+                            res.message = (
+                                f"{target_label} is already the active engine."
+                                if active == target_engine
+                                else f"Engine switcher is unavailable; staying on {active_label}."
+                            )
                     if tts is not None:
                         play = getattr(tts, "play_sound", None)
                         if play:

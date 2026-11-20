@@ -356,6 +356,12 @@ def extract_params(intent_id: str, utterance: str) -> Dict[str, Any]:
             params["url"] = match.group(0)
 
     elif intent_id == "engine_switch":
-        params["engine"] = "agy"
+        lower = cmd_text.lower()
+        if any(tok in lower for tok in ("opencode", "open code")):
+            params["engine"] = "opencode"
+        elif any(tok in lower for tok in ("antigravity", "anti-gravity", "anti gravity", "agy", "gemini")):
+            params["engine"] = "agy"
+        else:
+            params["engine"] = "codex"
 
     return params

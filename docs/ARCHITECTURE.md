@@ -10,11 +10,11 @@ This document describes the message paths implemented in `gideon.py` and `ai-vis
 sounddevice input
       |
       v
-Faster Whisper ---> reflex_router.py ---> local action
+Parakeet STT ---> reflex_router.py ---> local action
       |                    |
       |                    +-------------> handled
       v                                  (no engine request)
-agy / OpenCode <------------------------- unmatched prompt
+codex / agy <---------------------------- unmatched prompt
       |
 streamed reply -> Fish Audio -> pw-play
       |
@@ -26,18 +26,25 @@ streamed reply -> Fish Audio -> pw-play
 
 The embedded HTTP server serves the HUD at `http://127.0.0.1:8790/` and binds only to loopback. The visualizer pages poll its endpoints; the desktop overlay receives newline-delimited JSON over the Unix socket.
 
-## Antigravity persona and per-turn context
+## Engine persona and per-turn context
 
-`AntigravityEngine.start()` launches `agy` with `--input-format stream-json`,
-`--output-format stream-json`, and an empty `-p` argument. The persona is not
-passed as the command-line prompt. On the first `send_prompt()` of a new
-conversation, GIDEON prepends `GIDEON_VOICE_PREAMBLE` to the user message sent
-over stdin. It defines spoken-prose output, restrained personality and Fish
-Audio expression tags, and voice-oriented tool-use behavior.
+The default backend is `CodexEngine` (`codex_engine.py`): one persistent
+`codex app-server --listen stdio://` subprocess speaking JSON-RPC 2.0 over
+stdio, under an isolated `CODEX_HOME`
+(`~/.local/share/gideon/codex_home`) with hooks/apps disabled and only the
+`second-brain` and `agent-browser` MCPs plus live `web_search` enabled.
+`CODEX_VOICE_PREAMBLE` is passed once as `developerInstructions` in
+`thread/start`; turns run via `turn/start` with a per-turn `effort` override
+(protocol-verified), `approvalPolicy: never`, and `sandbox: danger-full-access`.
+Interrupts use `turn/interrupt` against the observed turn id.
 
-Subsequent messages omit that preamble. Changing effort resumes the existing
-conversation when its ID is available, retaining the current first-turn flag;
-starting a new conversation resets the flag.
+The fallback `AntigravityEngine` launches `agy` with `--input-format
+stream-json`, `--output-format stream-json`, and an empty `-p` argument. Its
+persona is not a command-line prompt: on the first `send_prompt()` of a new
+conversation GIDEON prepends `GIDEON_VOICE_PREAMBLE` to the user message sent
+over stdin; subsequent messages omit it. Changing effort resumes the existing
+conversation when its ID is available. agy has no live cancel API, so its
+interrupt queues a stop instruction behind the active turn.
 
 Before engine dispatch, explicit selected-text requests are prepared by
 `selected_context.py`. The current selection is wrapped as reference material
@@ -47,18 +54,23 @@ read the clipboard. The persona itself is static, not regenerated per turn.
 
 ## Advanced engine configuration
 
-Antigravity (`agy`) is the default backend. The optional OpenCode sidecar lives
-in `opencode_engine.py` and implements the shared engine interface. Select it
-with `--engine opencode` or `GIDEON_ENGINE=opencode`; it requires a running
-OpenCode service with connection details in
-`~/.local/state/opencode/service.json`.
+Codex (`codex`) is the default backend; Antigravity (`agy`) is the fallback
+and is selected automatically if Codex fails to start. Choose explicitly with
+`--engine codex|agy` or `GIDEON_ENGINE`. The OpenCode sidecar was removed.
 
-In an interactive daemon terminal, `engine agy` and `engine opencode` switch
-backends. `GIDEON_ENGINE=agy` or `--engine agy` explicitly selects Antigravity
-at startup. The first-turn persona flow described above is implemented by
-`AntigravityEngine`.
+At runtime the Tier-1 `engine_switch` voice intent calls `bus.switch_engine`
+("switch to Antigravity", "use Codex"), which shuts the old engine down,
+starts the new one, and rebinds the wake listener. Codex effort changes are
+in-thread (no respawn); agy effort changes resume the conversation with the
+new `--effort` flag.
 
 ## Embedded HTTP interface
+
+> **Deprecated 2026-11-20:** the browser HUD/PTT web portal is no longer used
+> and the server does not start by default. Set `GIDEON_ENABLE_HUD=1` to
+> re-enable it. Voice input runs through the wake word / hot mic; the
+> Quickshell orb socket is unaffected. The routes below document the opt-in
+> mode only.
 
 ### Read endpoints
 
@@ -98,7 +110,7 @@ The daemon unlinks any existing `/tmp/gideon-ui.sock` before binding a Unix stre
 
 | `event` | Fields | Meaning |
 | --- | --- | --- |
-| `state` | `val`, `detail`, `engine` | Current daemon state and human-readable detail; `engine` is the active engine id (agy\|opencode), added 2026-10. |
+| `state` | `val`, `detail`, `engine` | Current daemon state and human-readable detail; `engine` is the active engine id (codex\|agy). |
 | `rms` | `val` | Current normalized audio-level value; the daemon publishes it during microphone input and speech playback. |
 | `transcript` | `speaker`, `text` | Transcript text from `user` or `gideon`. |
 | `graph_query_result` | `query`, `nodes`, `status` | Background graph query result; `nodes` contains up to three labels and `status` is `ok` or `empty`. |

@@ -7,7 +7,10 @@ numpy
 scipy
 httpx
 onnxruntime
-transformers
+# Fast BGE tokenizer runtime (≈0.1s import). The full `transformers` package
+# (≈10s import chain incl. torch) is only needed for the network fallback
+# tokenizer when models/bge_classifier/tokenizer.json is absent.
+tokenizers
 
 # Speech input (loaded lazily by the listener)
 faster-whisper

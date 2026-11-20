@@ -22,7 +22,7 @@ from typing import Any, Callable, Coroutine, Dict, Optional, Tuple
 
 import numpy as np
 import onnxruntime as ort
-from transformers import AutoTokenizer
+from tokenizers import Tokenizer
 
 from gideon_shared import HandlerResult, extract_params
 from handlers_system import (
@@ -232,11 +232,20 @@ class GideonDispatcher:
         self.id2label = {int(k): v for k, v in temp_data.get("id2label", {}).items()}
         self.label2id = {v: int(k) for k, v in self.id2label.items()}
 
-        # Load local bundled tokenizer offline first to avoid HF network checks at boot
+        # Load the bundled tokenizer through the lightweight `tokenizers`
+        # runtime (≈0.1s import) instead of `transformers` (≈10s import chain
+        # incl. torch on this box). Encoding parity with AutoTokenizer is
+        # exact once export-time padding is disabled and truncation matches
+        # model_max_length=512 (verified in tests/test_gideon_v2_contract.py).
         local_tok_dir = Path(__file__).resolve().parent / "models" / "bge_classifier"
+        self._fast_tokenizer: Tokenizer | None = None
+        self.tokenizer = None
         if (local_tok_dir / "tokenizer.json").is_file():
-            self.tokenizer = AutoTokenizer.from_pretrained(str(local_tok_dir), local_files_only=True)
+            self._fast_tokenizer = Tokenizer.from_file(str(local_tok_dir / "tokenizer.json"))
+            self._fast_tokenizer.no_padding()
+            self._fast_tokenizer.enable_truncation(max_length=512)
         else:
+            from transformers import AutoTokenizer
             self.tokenizer = AutoTokenizer.from_pretrained("BAAI/bge-small-en-v1.5")
         
         opts = ort.SessionOptions()
@@ -260,11 +269,15 @@ class GideonDispatcher:
         
         Uses dynamic sequence length (~2.5ms on CPU) rather than fixed 64 padding.
         """
-        enc = self.tokenizer(text, return_tensors="np", truncation=True)
-        inputs = {
-            "input_ids": enc["input_ids"].astype(np.int64),
-            "attention_mask": enc["attention_mask"].astype(np.int64)
-        }
+        if self._fast_tokenizer is not None:
+            enc = self._fast_tokenizer.encode(text)
+            input_ids = np.asarray([enc.ids], dtype=np.int64)
+            attention_mask = np.asarray([enc.attention_mask], dtype=np.int64)
+        else:
+            enc = self.tokenizer(text, return_tensors="np", truncation=True)
+            input_ids = enc["input_ids"].astype(np.int64)
+            attention_mask = enc["attention_mask"].astype(np.int64)
+        inputs = {"input_ids": input_ids, "attention_mask": attention_mask}
         logits = self.session.run(["logits"], inputs)[0][0]
 
         # Apply temperature scaling

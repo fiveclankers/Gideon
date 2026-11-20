@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-GIDEON: Antigravity-Powered Voice Companion & Autonomous Executive
+GIDEON: Voice Companion & Autonomous Executive
 Built for Omarchy / Hyprland Linux.
 Features:
 - Unified HTTP Visualizer Server on port 8790 (serves Circuit Board & all faces).
 - In-Browser Hold-to-Talk via Spacebar (/api/talk/start & /api/talk/stop).
-- Headless bidirectional NDJSON Antigravity Engine (`agy`).
+- Persistent Codex `app-server` (`gpt-6-luna`) default engine with Antigravity (`agy`) fallback.
 - Parakeet TDT 0.6B v3 INT8 ONNX Speech-to-Text with Silero VAD (Faster-Whisper fallback).
 - Fish Audio Neural Cloud TTS with PipeWire (`pw-play`) playback.
 - Dynamic waveform & state IPC bridge for `ai-visualizer`.
@@ -17,6 +17,7 @@ Features:
 import argparse
 import asyncio
 import ctypes
+import functools
 import io
 import json
 import logging
@@ -103,6 +104,10 @@ _REPEATED_NUMBER_CURRENCY_RE = re.compile(
 # Fish Audio Config
 FISH_TTS_URL = "https://api.fish.audio/v1/tts"
 FISH_WS_URL = os.environ.get("GIDEON_FISH_WS_URL", "wss://api.fish.audio/v1/tts/live")
+# A finished Fish live session may hand its still-open WebSocket to the next
+# sentence, skipping the TLS+WS handshake (measured ~0.4s warm, ~1.6s cold).
+# Idle warm sockets older than this are discarded rather than trusted.
+WARM_WS_TTL_S = 30.0
 
 
 def _load_gideon_env() -> None:
@@ -139,6 +144,10 @@ if not FISH_API_KEY:
 FISH_REF_ID = "98655a12fa944e26b274c535e5e03842"
 FISH_MODEL = "s2.1-pro-free"
 HTTP_PORT = 8790
+# The browser HUD/PTT web portal is deprecated (owner directive 2026-11-20)
+# and no longer starts by default. Wake word + Quickshell orb are the live
+# surfaces. Set GIDEON_ENABLE_HUD=1 to bring the :8790 server back.
+HUD_ENABLED = os.environ.get("GIDEON_ENABLE_HUD", "0").strip().lower() in ("1", "true", "yes", "on")
 UI_SOCK_PATH = "/tmp/gideon-ui.sock"
 
 # Sentence boundary regex with abbreviation lookbehind protections
@@ -331,13 +340,18 @@ class SignalBus:
         self.dir = signals_dir
         self.current_state = "idle"
         self.current_detail = ""
-        self.engine_name = "agy"
+        self.engine_name = "codex"
         self.current_samples = [0.0] * 64
+        # Waveform bars are only consumed by the web HUD's /state endpoint.
+        # The orb uses scalar rms events. main() disables this when the HUD
+        # is off so producers skip the FFT/band math entirely; rms telemetry
+        # (which the orb DOES render) is never gated.
+        self.waveform_enabled = True
         self.current_level = 0.0
         self.current_user = ""
         self.current_reply = ""
         self.current_tool = None
-        self.current_effort = "low"
+        self.current_effort = "xhigh"
         self.wake_enabled = True
         self.ui_clients: set[asyncio.StreamWriter] = set()
         self._ui_server = None
@@ -457,14 +471,43 @@ class SignalBus:
         self.update_waveform([0.0] * 64)
 
 
+@functools.lru_cache(maxsize=8)
+def _frame_dsp_tables(chunk_size: int, sr: int) -> tuple[np.ndarray, np.ndarray]:
+    """Cached Hann window + 64-band averaging matrix for waveform extraction.
+
+    These tables depend only on (chunk_size, sr); rebuilding them per audio
+    chunk cost ~9ms of event-loop time per 160ms of speech. Empty bands keep
+    the original single-bin fallback (bin 1+idx, clamped to the last bin).
+    """
+    window = np.hanning(chunk_size).astype(np.float32)
+    freqs = np.fft.rfftfreq(chunk_size, d=1.0 / sr)
+    edges = np.geomspace(80.0, min(7000.0, sr * 0.45), 65)
+    nbins = len(freqs)
+    matrix = np.zeros((64, nbins), dtype=np.float32)
+    for i in range(64):
+        mask = (freqs >= edges[i]) & (freqs < edges[i + 1])
+        count = int(mask.sum())
+        if count:
+            matrix[i, mask] = 1.0 / count
+        else:
+            matrix[i, min(nbins - 1, 1 + i)] = 1.0
+    return window, matrix
+
+
 def _extract_audio_frames(
     audio_bytes: bytes,
     *,
     is_raw_pcm: bool = False,
     sample_rate: int = 44100,
     hop_s: float = 0.04,
+    with_bands: bool = True,
 ) -> tuple[list[tuple[list[float], float]], float]:
-    """Compute per-frame 64-band spectral levels and normalized RMS from real WAV/PCM audio."""
+    """Compute per-frame normalized RMS and (optionally) 64-band spectral levels.
+
+    with_bands=False skips the FFT/band math entirely and yields empty bar
+    lists — used when no UI surface consumes waveforms (HUD off). The RMS
+    values are identical either way; the orb renders those, not the bars.
+    """
     samples: Optional[np.ndarray] = None
     sr = sample_rate
     try:
@@ -491,10 +534,7 @@ def _extract_audio_frames(
         return [], hop_s
 
     chunk_size = max(64, int(sr * hop_s))
-    window = np.hanning(chunk_size).astype(np.float32)
-    freqs = np.fft.rfftfreq(chunk_size, d=1.0 / sr)
-    edges = np.geomspace(80.0, min(7000.0, sr * 0.45), 65)
-    band_masks = [((freqs >= edges[i]) & (freqs < edges[i + 1])) for i in range(64)]
+    window, band_matrix = _frame_dsp_tables(chunk_size, sr) if with_bands else (None, None)
 
     frames: list[tuple[list[float], float]] = []
     for start in range(0, len(samples), chunk_size):
@@ -504,15 +544,13 @@ def _extract_audio_frames(
         rms = float(np.sqrt(np.mean(chunk * chunk)))
         norm_rms = float(np.clip(rms * 3.8, 0.0, 1.0))
 
-        spec = np.abs(np.fft.rfft(chunk * window)) / (chunk_size * 0.25 + 1e-6)
-        bars: list[float] = []
-        for idx, mask in enumerate(band_masks):
-            if np.any(mask):
-                val = float(np.mean(spec[mask]))
-            else:
-                bin_i = min(len(spec) - 1, 1 + idx)
-                val = float(spec[bin_i])
-            bars.append(float(np.clip(np.log1p(val * 18.0) * 0.45 + norm_rms * 0.25, 0.02 if norm_rms > 0.02 else 0.0, 1.0)))
+        if with_bands:
+            spec = np.abs(np.fft.rfft(chunk * window)) / (chunk_size * 0.25 + 1e-6)
+            band_vals = (band_matrix @ spec).astype(np.float64)
+            floor = 0.02 if norm_rms > 0.02 else 0.0
+            bars = np.clip(np.log1p(band_vals * 18.0) * 0.45 + norm_rms * 0.25, floor, 1.0).tolist()
+        else:
+            bars = []
         frames.append((bars, norm_rms))
     return frames, hop_s
 
@@ -538,6 +576,8 @@ class TTSPlayer:
         self._current_synth_tasks: set[asyncio.Task] = set()
         self._interrupted_procs: set[subprocess.Popen] = set()
         self._http_client: Optional[Any] = None
+        self._warm_ws: Optional[Any] = None
+        self._warm_ws_ts: float = 0.0
 
     def _active_tool_label(self) -> Optional[str]:
         """Returns the active running tool label if a tool/subagent is currently executing."""
@@ -614,10 +654,136 @@ class TTSPlayer:
             logger.error(f"Fish TTS error: {e}")
         return None
 
+    def _ws_is_open(self, ws: Any) -> bool:
+        """True only for real, OPEN websockets connections (fakes lack .state)."""
+        return getattr(getattr(ws, "state", None), "name", "") == "OPEN"
+
+    async def _close_ws_quiet(self, ws: Any) -> None:
+        if ws is None:
+            return
+        try:
+            await asyncio.wait_for(ws.close(), timeout=2.0)
+        except (Exception, asyncio.CancelledError):
+            pass
+
+    def _take_warm_ws(self) -> Optional[Any]:
+        ws = self._warm_ws
+        self._warm_ws = None
+        if ws is None:
+            return None
+        if (time.monotonic() - self._warm_ws_ts) > WARM_WS_TTL_S or not self._ws_is_open(ws):
+            asyncio.create_task(self._close_ws_quiet(ws))
+            return None
+        return ws
+
+    def _offer_warm_ws(self, ws: Any) -> None:
+        if not self._ws_is_open(ws):
+            asyncio.create_task(self._close_ws_quiet(ws))
+            return
+        old = self._warm_ws
+        self._warm_ws = ws
+        self._warm_ws_ts = time.monotonic()
+        if old is not None and old is not ws:
+            asyncio.create_task(self._close_ws_quiet(old))
+
+    async def prewarm_ws(self) -> None:
+        """Best-effort handshake ahead of the first sentence of a turn.
+
+        Called when a prompt is dispatched so the TLS+WS handshake overlaps
+        LLM thinking time instead of delaying first audio. Failures are
+        silent: synthesis connects on demand as before.
+        """
+        if not self._ws_enabled() or self._warm_ws is not None:
+            return
+        cm = None
+        try:
+            import websockets
+            headers = {
+                "Authorization": f"Bearer {FISH_API_KEY}",
+                "model": FISH_MODEL,
+            }
+            cm = websockets.connect(
+                FISH_WS_URL,
+                additional_headers=headers,
+                open_timeout=8,
+                close_timeout=2,
+            )
+            ws = await cm.__aenter__()
+            if self._ws_is_open(ws):
+                self._offer_warm_ws(ws)
+                cm = None  # keep the socket alive outside its context manager
+        except Exception:
+            pass
+        finally:
+            if cm is not None:
+                try:
+                    await cm.__aexit__(None, None, None)
+                except Exception:
+                    pass
+
+    async def _ws_session(self, ws: Any, stream: _FishStream, msgpack: Any) -> tuple[bool, bool]:
+        """Run one start/text/flush/stop session; return (finished, received_audio)."""
+        start_req = {
+            "text": "",
+            "reference_id": FISH_REF_ID,
+            "format": "pcm",
+            "sample_rate": 44100,
+            "latency": "balanced",
+            "temperature": 0.7,
+            "top_p": 0.7,
+            "chunk_length": 100,
+            "normalize": True,
+            "condition_on_previous_chunks": True,
+            "prosody": {
+                "speed": 1,
+                "volume": 0,
+                "normalize_loudness": False,
+            },
+        }
+        await ws.send(msgpack.packb({"event": "start", "request": start_req}, use_bin_type=True))
+        await ws.send(msgpack.packb({"event": "text", "text": f"{stream.text} "}, use_bin_type=True))
+        await ws.send(msgpack.packb({"event": "flush"}, use_bin_type=True))
+        await ws.send(msgpack.packb({"event": "stop"}, use_bin_type=True))
+
+        received_audio = False
+        finished = False
+        odd_byte = b""
+        async for raw_msg in ws:
+            if not isinstance(raw_msg, (bytes, bytearray)):
+                continue
+            msg = msgpack.unpackb(raw_msg, raw=False)
+            if not isinstance(msg, dict):
+                continue
+            event = msg.get("event")
+            if event == "audio":
+                chunk = msg.get("audio")
+                if not isinstance(chunk, (bytes, bytearray)) or not chunk:
+                    continue
+                combined = odd_byte + bytes(chunk)
+                if len(combined) & 1:
+                    odd_byte = combined[-1:]
+                    combined = combined[:-1]
+                else:
+                    odd_byte = b""
+                if combined:
+                    received_audio = True
+                    await stream.chunk_queue.put(combined)
+            elif event == "finish":
+                finished = True
+                break
+            elif event == "error":
+                stream.error = str(msg.get("message") or msg.get("error") or msg)
+                logger.warning(f"Fish WS error: {stream.error}")
+                break
+        return finished, received_audio
+
     async def _run_ws_stream(self, stream: _FishStream) -> None:
         received_audio = False
         was_cancelled = False
-        odd_byte = b""
+        finished = False
+        ws = None
+        cm = None
+        reused = False
         try:
             import msgpack
             import websockets
@@ -626,60 +792,37 @@ class TTSPlayer:
                 "Authorization": f"Bearer {FISH_API_KEY}",
                 "model": FISH_MODEL,
             }
-            start_req = {
-                "text": "",
-                "reference_id": FISH_REF_ID,
-                "format": "pcm",
-                "sample_rate": 44100,
-                "latency": "balanced",
-                "temperature": 0.7,
-                "top_p": 0.7,
-                "chunk_length": 100,
-                "normalize": True,
-                "condition_on_previous_chunks": True,
-                "prosody": {
-                    "speed": 1,
-                    "volume": 0,
-                    "normalize_loudness": False,
-                },
-            }
-            async with websockets.connect(
-                FISH_WS_URL,
-                additional_headers=headers,
-                open_timeout=8,
-                close_timeout=2,
-            ) as ws:
-                await ws.send(msgpack.packb({"event": "start", "request": start_req}, use_bin_type=True))
-                await ws.send(msgpack.packb({"event": "text", "text": f"{stream.text} "}, use_bin_type=True))
-                await ws.send(msgpack.packb({"event": "flush"}, use_bin_type=True))
-                await ws.send(msgpack.packb({"event": "stop"}, use_bin_type=True))
 
-                async for raw_msg in ws:
-                    if not isinstance(raw_msg, (bytes, bytearray)):
-                        continue
-                    msg = msgpack.unpackb(raw_msg, raw=False)
-                    if not isinstance(msg, dict):
-                        continue
-                    event = msg.get("event")
-                    if event == "audio":
-                        chunk = msg.get("audio")
-                        if not isinstance(chunk, (bytes, bytearray)) or not chunk:
-                            continue
-                        combined = odd_byte + bytes(chunk)
-                        if len(combined) & 1:
-                            odd_byte = combined[-1:]
-                            combined = combined[:-1]
-                        else:
-                            odd_byte = b""
-                        if combined:
-                            received_audio = True
-                            await stream.chunk_queue.put(combined)
-                    elif event == "finish":
-                        break
-                    elif event == "error":
-                        stream.error = str(msg.get("message") or msg.get("error") or msg)
-                        logger.warning(f"Fish WS error: {stream.error}")
-                        break
+            def _connect():
+                return websockets.connect(
+                    FISH_WS_URL,
+                    additional_headers=headers,
+                    open_timeout=8,
+                    close_timeout=2,
+                )
+
+            ws = self._take_warm_ws()
+            if ws is not None:
+                reused = True
+            else:
+                cm = _connect()
+                ws = await cm.__aenter__()
+            try:
+                finished, received_audio = await self._ws_session(ws, stream, msgpack)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # A stale warm socket may fail before any audio: retry once on
+                # a fresh connection. Never retry mid-audio (duplicate speech).
+                if not reused or received_audio:
+                    raise
+                logger.debug("Warm Fish WS connection stale; reconnecting fresh.")
+                await self._close_ws_quiet(ws)
+                ws = None
+                cm = _connect()
+                ws = await cm.__aenter__()
+                reused = False
+                finished, received_audio = await self._ws_session(ws, stream, msgpack)
         except asyncio.CancelledError:
             was_cancelled = True
             raise
@@ -687,6 +830,27 @@ class TTSPlayer:
             stream.error = str(e)
             logger.warning(f"Fish WS stream failed ({e}); falling back to HTTP.")
         finally:
+            try:
+                keep = (
+                    not was_cancelled
+                    and finished
+                    and stream.error is None
+                    and ws is not None
+                    and self._ws_is_open(ws)
+                )
+                if keep:
+                    self._offer_warm_ws(ws)
+                    cm = None
+                    ws = None
+                if cm is not None:
+                    try:
+                        await cm.__aexit__(None, None, None)
+                    except Exception:
+                        pass
+                elif ws is not None:
+                    await self._close_ws_quiet(ws)
+            except asyncio.CancelledError:
+                pass
             if not was_cancelled and not received_audio and stream.task is not None and not stream.task.cancelled():
                 try:
                     stream.fallback_wav = await self.synthesize(stream.text)
@@ -758,6 +922,10 @@ class TTSPlayer:
 
     async def interrupt(self):
         """Kills active audio playback immediately and cancels queued speech."""
+        warm = self._warm_ws
+        self._warm_ws = None
+        if warm is not None:
+            await self._close_ws_quiet(warm)
         while not self._queue.empty():
             try:
                 _, item = self._queue.get_nowait()
@@ -840,6 +1008,7 @@ class TTSPlayer:
                     is_raw_pcm=True,
                     sample_rate=44100,
                     hop_s=hop_s,
+                    with_bands=self.bus.waveform_enabled,
                 )
                 frames.extend(extracted)
                 del pcm_accum[:usable]
@@ -923,7 +1092,7 @@ class TTSPlayer:
         )
         self._current_proc = proc
 
-        frames, hop_s = _extract_audio_frames(wav_bytes, is_raw_pcm=False)
+        frames, hop_s = _extract_audio_frames(wav_bytes, is_raw_pcm=False, with_bands=self.bus.waveform_enabled)
 
         # Animate visualizer waveform and orb RMS synchronized to real audio frames
         async def _animate():
@@ -983,15 +1152,19 @@ def clean_text_for_tts(raw: str) -> Optional[str]:
     text = re.sub(r'\*([^*]+)\*', r'\1', text)
     text = re.sub(r'__([^_]+)__', r'\1', text)
     # Strip list markers at each streamed line, not only at the beginning
-    # of the whole response.
-    text = re.sub(r'(?m)^\s*(\d+[\.\)]|[-*•])\s*', '', text)
+    # of the whole response (leave 3+ digit numbers untouched).
+    # Numeric markers require trailing whitespace so leading decimals
+    # ("9.81 meters...", "12.5 percent...") are never decapitated; bullets
+    # must not eat a following digit ("-40 degrees..." is a temperature).
+    text = re.sub(r'(?m)^\s*(?:\d{1,2}[.)]\s+|[-*•](?!\d)\s*)', '', text)
     # Replace em-dashes and en-dashes with natural comma pauses
     text = text.replace('—', ', ').replace('–', ', ')
     # Collapse extra whitespace
     text = ' '.join(text.split()).strip()
 
-    # Drop single numbers, empty or trivial text
-    if not text or len(text) < 3 or re.match(r'^\d+[\.\)]?$', text):
+    # Drop empty text, <3-char fragments (including 1-2 digit list numbers like "12"),
+    # and trailing 1-2 digit ordinals like "1." / "2)". Preserve multi-digit answers like "210".
+    if not text or len(text) < 3 or re.match(r'^\d{1,2}[\.\)]?$', text):
         return None
     # Drop purely punctuation or single characters
     if not any(c.isalnum() for c in text):
@@ -1037,6 +1210,57 @@ GIDEON_VOICE_PREAMBLE = (
     "Open or navigate to the exact URL supplied or verified; NEVER invent tab handles or guess IDs. "
     "After navigation, verify the loaded URL and page content before claiming success. If a tab is missing or stale, "
     "list tabs again or open a new tab and use its returned ID.\n\n"
+    "=== VARIABLE PERSONALITY & VOCAL DELIVERY (USE WITH RESTRAINT) ===\n"
+    "- Demeanor: Feisty, witty, and playfully cheeky, but fundamentally capable, loyal, and grounded. "
+    "Do NOT become a parody or mock every question. Only tease when playful banter is naturally warranted.\n"
+    "- Language & Flow: Adult, natural conversational cadence. Real profanity (fuck, shit, damn, ass, bullshit, hell) "
+    "is welcome when something is genuinely broken, ridiculous, or exciting—never forced into every sentence. "
+    'Occasional natural hesitations ("uhm", "well", "look") add realistic flow.\n'
+    "- Fish Audio S2.1 Expression Tags: You MAY sparingly use square-bracket tags like [chuckle], [snicker], "
+    "[teasing], [sarcastic], [smug], [groan], [excited], [deadpan], [scoff], or [pause] when delivery calls for it. "
+    "NEVER use whisper tags. NEVER force tags into routine or simple answers—at most one or two when earned. "
+    "Most turns need none."
+)
+
+CODEX_VOICE_PREAMBLE = (
+    "[Directive: Voice Operating Mode & Behavioral Protocol]\n"
+    "You are GIDEON: an autonomous desktop companion and executive on Omarchy Linux. "
+    "You speak aloud directly to the user via neural text-to-speech.\n\n"
+    "=== HARD NON-NEGOTIABLES (STRICT ZERO TOLERANCE) ===\n"
+    "1. PURE SPOKEN PROSE ONLY: Never output markdown headers (###), bullet points (* or -), "
+    "numbered lists (1. 2.), code fences, asterisks, markdown URLs, or pointer arrows. "
+    "Every response must read as natural spoken sentences.\n"
+    "2. NO CODE RECITATIONS: Never read out code blocks, syntax diffs, or terminal logs. "
+    "Summarize code findings or edits concisely in plain spoken sentences.\n"
+    "3. CONVERSATIONAL WEAVING: For multi-factor explanations, connect points conversationally "
+    '("First off...", "Plus...", "And honestly...") rather than listing items.\n'
+    "4. PROPORTIONALITY & SPEED: If the user asks a simple or factual question (e.g. \"what's 9 times 9?\"), "
+    "answer directly in a short spoken sentence (never just a bare digit or fragment, e.g. say \"Nine times nine is 81.\") "
+    "without unsolicited jokes, banter, or filler. "
+    "For open or explanatory first responses, keep it concise at roughly 35 to 60 spoken words "
+    "giving the core answer quickly, then end with a brief natural offer to go deeper if they want more.\n"
+    "5. NO SELF-INSPECTION & ZERO REPO BLOAT: NEVER read `codemap.md`, `graphify-out/`, `gideon` skill files, "
+    "or `/home/cat/gideon` source files unless the user explicitly asks you to inspect or modify Gideon itself. "
+    "Desktop questions (e.g. Downloads, apps, settings) should NEVER touch repo maps.\n"
+    "6. FAST MUSIC & MEDIA PLAYBACK: Execute immediately in ONE shell command via `~/.local/bin/music` "
+    "(never read `SKILL.md` or `music.md`, never run `--help`, never touch raw `mpv`, IPC sockets, or `playerctl`). "
+    "For local moods/genres/artists/playlists use `--mood|--genre|--artist|--playlist`. "
+    "For specific songs use `~/.local/bin/music play --search \"<song or artist>\" --online --json`. "
+    "For non-local, unique, or vague vibes use `~/.local/bin/music online \"<artist - track>\" --json` "
+    "(translate vibes directly into 1 concrete track for speed, or up to 3 only if asked for multiple songs). "
+    "The CLI manages `mpv` and verifies real playback before returning `0`.\n"
+    "7. SPOKEN PROGRESS & SPEED DISCIPLINE: Before lengthy tool work, give one concise spoken acknowledgment. "
+    "During longer tasks, give a brief spoken update at meaningful milestones; do not narrate every quick command "
+    "or fill short waits. Keep quick diagnostics batched, avoid unnecessary subagents, and keep the final answer tight. "
+    "Use `second-brain` MCP (`search_second_brain`, `second_brain_stats`) for Second Brain / Obsidian vault memory, "
+    "`agent-browser` MCP for browser automation, and native `web_search` for live web info. "
+    "Map Nihal/Sinha/Sina to Sinh (`sinhzeva`) on Instagram, and use `wl-copy` with `WAYLAND_DISPLAY=wayland-1` for clipboard copies.\n"
+    "8. STT TYPO RECOVERY: Speech-to-text sometimes warps technical words phonetically "
+    "(for example 'jungle's filter' -> Downloads folder, 'R sixty four' -> aarch64/ARM64, 'Visperflow' -> Wispr Flow). "
+    "Infer the obvious meaning from context without making the user spell it out.\n"
+    "9. OBSERVED-TAB-ONLY BROWSING: Use only observed tab IDs returned by browser tools in this session. "
+    "Open or navigate to the exact URL supplied or verified; NEVER invent tab handles or guess IDs. "
+    "After navigation, verify the loaded URL and page content before claiming success.\n\n"
     "=== VARIABLE PERSONALITY & VOCAL DELIVERY (USE WITH RESTRAINT) ===\n"
     "- Demeanor: Feisty, witty, and playfully cheeky, but fundamentally capable, loyal, and grounded. "
     "Do NOT become a parody or mock every question. Only tease when playful banter is naturally warranted.\n"
@@ -1508,6 +1732,11 @@ class AntigravityEngine:
             return
         # Priority intervention: interrupt in-flight speaking
         await self.tts.interrupt()
+        # Overlap the Fish live WS handshake with engine/LLM latency so the
+        # first spoken sentence does not pay the connect cost.
+        prewarm = getattr(self.tts, "prewarm_ws", None)
+        if asyncio.iscoroutinefunction(prewarm):
+            asyncio.create_task(prewarm())
         await self._sync_auth_account()
         if not await self._ensure_engine_alive():
             return
@@ -1855,7 +2084,13 @@ class VoiceListener:
                 import onnxruntime as ort
 
                 opts = ort.SessionOptions()
-                opts.intra_op_num_threads = min(3, max(1, os.cpu_count() or 2))
+                # Measured on this 4-core box (3.7s utterance, int8): 2 threads
+                # 576-878ms, 3 threads 675-1002ms, 4 threads 862-2035ms — extra
+                # intra-op threads contend with the wake-word loop and OS.
+                opts.intra_op_num_threads = min(2, max(1, os.cpu_count() or 2))
+                # No CPU memory arena: measured ~200MB less RSS at equal
+                # transcription latency (493-559ms vs 461-617ms with arena).
+                opts.enable_cpu_mem_arena = False
                 opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
 
                 parakeet_path = _resolve_hf_snapshot("models--istupakov--parakeet-tdt-0.6b-v3-onnx")
@@ -1989,14 +2224,15 @@ class AudioStreamRecorder:
         self._stream_lock = threading.Lock()
         self.ambient_floor = 0.010
         import scipy.signal as signal
+        self._signal = signal
         self.bp_b, self.bp_a = signal.butter(2, [200 / 8000, 3800 / 8000], btype="bandpass")
 
     def _callback(self, indata, frames_count, time_info, status):
         if self.is_recording:
             self.frames.append(indata.copy())
-            import scipy.signal as signal
+            # Real-time PortAudio callback: no imports, no repeated reductions.
             chunk = indata.flatten().astype(np.float32) / 32768.0
-            filtered = signal.lfilter(self.bp_b, self.bp_a, chunk)
+            filtered = self._signal.lfilter(self.bp_b, self.bp_a, chunk)
             rms = float(np.sqrt(np.mean(filtered**2)))
             self.ambient_floor = self.ambient_floor * 0.95 + min(rms, 0.025) * 0.05
             # Gated against fan noise and scaled down a couple folds
@@ -2005,12 +2241,15 @@ class AudioStreamRecorder:
             self.bus.current_level = norm_rms
             self.bus.broadcast_rms(norm_rms)
 
-            fft_data = np.abs(np.fft.rfft(filtered))[:32]
-            max_fft = np.max(fft_data) if len(fft_data) and np.max(fft_data) > 0 else 1.0
-            bars = [float(np.clip((v / max_fft) * norm_rms, 0.0, 0.75)) for v in fft_data]
-            if len(bars) < 32:
-                bars += [0.0] * (32 - len(bars))
-            self.bus.update_waveform(bars + [0.0] * 32)
+            if self.bus.waveform_enabled:
+                fft_data = np.abs(np.fft.rfft(filtered))[:32]
+                max_fft = float(np.max(fft_data)) if len(fft_data) else 0.0
+                if max_fft <= 0:
+                    max_fft = 1.0
+                bars = [float(np.clip((v / max_fft) * norm_rms, 0.0, 0.75)) for v in fft_data]
+                if len(bars) < 32:
+                    bars += [0.0] * (32 - len(bars))
+                self.bus.update_waveform(bars + [0.0] * 32)
 
     def start(self):
         with self._stream_lock:
@@ -2175,10 +2414,32 @@ class WakeWordListener:
         if self._listener_instance:
             self._listener_instance.stop()
 
+    def _handle_barge_in(self) -> None:
+        """Stop playback AND the in-flight engine turn on acoustic barge-in.
+
+        Interrupting only the TTS player is not enough: the engine keeps
+        streaming deltas and queueing fresh sentences, so Gideon resumes
+        speaking over the user within a second. Both engines' interrupt()
+        cancels the turn and clears the speech queue.
+        """
+        logger.info("⚡ Acoustic barge-in detected! Interrupting active speech and turn...")
+        if not (self.main_loop and self.main_loop.is_running()):
+            return
+        engine = getattr(self.bus, "engine", None)
+        interrupt = getattr(engine, "interrupt", None)
+        if callable(interrupt):
+            asyncio.run_coroutine_threadsafe(interrupt(), self.main_loop)
+        else:
+            asyncio.run_coroutine_threadsafe(self.tts.interrupt(), self.main_loop)
+
     def _run_loop(self):
         sys.path.insert(0, str(HERE))
         from audio.wake import AudioListener
         from audio.sounds import play_sound
+
+        # Precomputed bar shape for the idle breathing waveform (32 sin()
+        # calls per audio chunk used to run in this hot callback).
+        rms_bar_shape = np.array([0.35 + 0.65 * np.sin(i * 0.35) for i in range(32)])
 
         def on_rms(norm_rms: float):
             if self.bus.current_state in ("listening", "hotmic"):
@@ -2186,18 +2447,14 @@ class WakeWordListener:
                 gated_rms = float(np.clip(norm_rms * 0.40, 0.0, 0.75))
                 self.bus.current_level = gated_rms
                 self.bus.broadcast_rms(gated_rms)
-                bars = [float(np.clip(gated_rms * (0.35 + 0.65 * np.sin(i * 0.35)), 0.0, 0.75)) for i in range(32)]
-                self.bus.update_waveform(bars + [0.0] * 32)
+                if self.bus.waveform_enabled:
+                    bars = np.clip(gated_rms * rms_bar_shape, 0.0, 0.75).tolist()
+                    self.bus.update_waveform(bars + [0.0] * 32)
 
         def on_wake():
             logger.info("⚡ Wake word detected ('Hey Jarvis')!")
             self.disarm_hot_mic()
             self.bus.set_state("listening")
-
-        def on_barge_in():
-            logger.info("⚡ Acoustic barge-in detected! Interrupting active speech...")
-            if self.main_loop and self.main_loop.is_running():
-                asyncio.run_coroutine_threadsafe(self.tts.interrupt(), self.main_loop)
 
         listener = AudioListener(
             wake_word="hey jarvis",
@@ -2206,7 +2463,7 @@ class WakeWordListener:
             hot_mic_timeout=self.hot_mic_timeout,
             on_rms_update=on_rms,
             on_wake_detected=on_wake,
-            on_barge_in=on_barge_in
+            on_barge_in=self._handle_barge_in
         )
         self._listener_instance = listener
         listener.load_wake_model()
@@ -2281,17 +2538,22 @@ class StdinReader:
         except Exception:
             self.is_tty = False
 
-    async def prompt_line(self, prompt: str) -> str:
+    async def prompt_line(self, prompt: str) -> Optional[str]:
+        """Return one terminal line, or None when stdin is unavailable/EOF.
+
+        None is a sentinel, NOT an empty utterance: under systemd stdin is
+        /dev/null, and returning "" here used to make the main loop record a
+        phantom 5-second microphone chunk every hour and dispatch whatever
+        the room said as a user prompt.
+        """
         if not self.is_tty:
-            await asyncio.sleep(3600)
-            return ""
+            return None
         sys.stdout.write(prompt)
         sys.stdout.flush()
         line_bytes = await self.reader.readline()
         if not line_bytes:
             self.is_tty = False
-            await asyncio.sleep(3600)
-            return ""
+            return None
         return line_bytes.decode("utf-8", errors="ignore").strip()
 
 
@@ -2304,6 +2566,7 @@ async def _dispatch_user_utterance(
     wake_listener=None,
     effort: Optional[str] = None,
     rearm_after_reflex: bool = False,
+    set_engine=None,
 ) -> None:
     """Unified prompt router shared by PTT, wake-word, HTTP UI, and terminal stdin."""
     bus.set_user_transcript(text)
@@ -2322,7 +2585,7 @@ async def _dispatch_user_utterance(
             asyncio.create_task(_copy_reply_after_turn(curr_engine, bus))
         return
 
-    handled = await try_reflex(text, bus=bus, tts=tts)
+    handled = await try_reflex(text, bus=bus, tts=tts, set_engine=set_engine or getattr(bus, "switch_engine", None))
     if not handled:
         bus.set_state("conversing", "LLM: Thinking…")
         await curr_engine.send_prompt(text)
@@ -2355,18 +2618,36 @@ def _focus_status_safe() -> dict:
 def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_listener, get_engine, get_wake_listener, loop: asyncio.AbstractEventLoop, get_tts=None):
     """Runs the integrated HTTP server for the GIDEON PRIME visualizer."""
     class VisualizerHandler(BaseHTTPRequestHandler):
+        # Only loopback browser origins may talk to the daemon. The Host gate
+        # alone is NOT enough: a cross-origin fetch to http://127.0.0.1:8790
+        # still carries Host: 127.0.0.1:8790, so any web page could otherwise
+        # POST /api/prompt (which drives shell-capable engines) or read
+        # /state transcripts via Access-Control-Allow-Origin: *.
+        _LOOPBACK_ORIGIN_RE = re.compile(r"^http://(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$")
+
         def _host_allowed(self) -> bool:
             # The POST endpoints drive reflexes that execute local commands.
-            # A cross-origin page can bypass CORS preflight because this server
-            # answers OPTIONS with Allow-Origin *, so gate on the Host header:
-            # only loopback origins may talk to the daemon.
+            # Gate on the Host header so DNS-rebinding names never resolve in.
             host = (self.headers.get("Host") or "").strip().lower()
             return host in ("127.0.0.1", "localhost", "[::1]") or host.startswith(
                 ("127.0.0.1:", "localhost:", "[::1]:")
             )
 
+        def _origin_allowed(self) -> bool:
+            origin = (self.headers.get("Origin") or "").strip().rstrip("/")
+            if not origin:
+                # Same-origin HUD request or non-browser client (curl, tests).
+                return True
+            return bool(self._LOOPBACK_ORIGIN_RE.match(origin))
+
+        def _cors_origin(self) -> Optional[str]:
+            origin = (self.headers.get("Origin") or "").strip().rstrip("/")
+            if origin and self._LOOPBACK_ORIGIN_RE.match(origin):
+                return origin
+            return None
+
         def do_GET(self):
-            if not self._host_allowed():
+            if not self._host_allowed() or not self._origin_allowed():
                 self.send_error(403)
                 return
             path = self.path.split("?")[0]
@@ -2393,9 +2674,10 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
             elif path == "/api/focus":
                 self._send(json.dumps(_focus_status_safe()).encode(), "application/json")
             elif path == "/config":
+                eng_label = (getattr(bus, "engine_name", "codex") or "codex").upper()
                 out = {
                     "name": "GIDEON PRIME",
-                    "badge": "ANTIGRAVITY CORE",
+                    "badge": f"{eng_label} CORE",
                     "face": "board",
                     "thinking_sound": True,
                     "faces": [{"id": "board", "title": "GIDEON PRIME", "tagline": ""}]
@@ -2405,17 +2687,20 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
                 self._static(path)
 
         def do_OPTIONS(self):
-            if not self._host_allowed():
+            if not self._host_allowed() or not self._origin_allowed():
                 self.send_error(403)
                 return
             self.send_response(200)
-            self.send_header("Access-Control-Allow-Origin", "*")
+            cors_origin = self._cors_origin()
+            if cors_origin:
+                self.send_header("Access-Control-Allow-Origin", cors_origin)
+                self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.end_headers()
 
         def do_POST(self):
-            if not self._host_allowed():
+            if not self._host_allowed() or not self._origin_allowed():
                 self.send_error(403)
                 return
             path = self.path.split("?")[0]
@@ -2564,7 +2849,10 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Cache-Control", "no-store")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            cors_origin = self._cors_origin()
+            if cors_origin:
+                self.send_header("Access-Control-Allow-Origin", cors_origin)
+                self.send_header("Vary", "Origin")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -2577,7 +2865,24 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
     server.serve_forever()
 
 
-def _make_engine(bus: SignalBus, tts: TTSPlayer) -> AntigravityEngine:
+def _make_engine(name: str, bus: SignalBus, tts: TTSPlayer):
+    """Factory: 'codex' is Codex app-server (default); 'agy' is Antigravity fallback."""
+    if name not in ("codex", "agy"):
+        logger.warning("Unknown engine %r; falling back to codex.", name)
+        name = "codex"
+    if name == "codex":
+        from codex_engine import CodexEngine, DEFAULT_CODEX_EFFORT
+        return CodexEngine(
+            bus,
+            tts,
+            preamble=CODEX_VOICE_PREAMBLE,
+            cwd=str(HERE),
+            effort=DEFAULT_CODEX_EFFORT,
+            clean_text_fn=clean_text_for_tts,
+            sentence_end_re=_SENTENCE_END,
+            directive_classifier=classify_turn_directive,
+            hot_mic_window_s=HOT_MIC_WINDOW_S,
+        )
     return AntigravityEngine(bus, tts)
 
 
@@ -2598,6 +2903,12 @@ async def _shutdown_engine(engine) -> None:
 async def main():
     parser = argparse.ArgumentParser(description="Gideon voice console")
     parser.add_argument(
+        "--engine",
+        choices=["codex", "agy"],
+        default=os.environ.get("GIDEON_ENGINE", "codex"),
+        help="Brain backend: codex = Codex app-server (default); agy = Antigravity fallback",
+    )
+    parser.add_argument(
         "--debug-bundle",
         nargs="?",
         const="",
@@ -2614,17 +2925,63 @@ async def main():
 
     loop = asyncio.get_running_loop()
     bus = SignalBus(SIGNALS_DIR)
+    # No HUD, no waveform consumers: skip the spectral math in all producers.
+    bus.waveform_enabled = HUD_ENABLED
     await bus.start_ui_server()
     tts = TTSPlayer(bus)
     tts.start_worker()
     from focus_mode import get_focus_manager
     focus_manager = get_focus_manager(bus=bus, tts=tts)
-    engine = _make_engine(bus, tts)
-    bus.engine_name = "agy"
+    engine_name = args.engine
+    engine = _make_engine(engine_name, bus, tts)
+    bus.engine_name = engine_name
+    bus.current_effort = getattr(engine, "effort", "xhigh")
     engine_holder = [engine]
     wake_listener_holder = [None]
     recorder = AudioStreamRecorder(bus)
     listener_instance = [None]
+
+    async def switch_engine(target: str) -> bool:
+        nonlocal engine_name
+        if target not in ("codex", "agy"):
+            logger.warning("Unknown engine target: %r", target)
+            return False
+        if target == engine_name and getattr(engine_holder[0], "_engine_alive", lambda: True)():
+            logger.info("[Engine] already on %s", target)
+            return True
+        previous = engine_holder[0]
+        previous_name = engine_name
+        try:
+            await _shutdown_engine(previous)
+            new_engine = _make_engine(target, bus, tts)
+            await new_engine.start()
+            if wake_listener_holder[0]:
+                new_engine.wake_listener = wake_listener_holder[0]
+            engine_holder[0] = new_engine
+            engine_name = target
+            bus.engine = new_engine
+            bus.engine_name = target
+            bus.current_effort = getattr(new_engine, "effort", bus.current_effort)
+            bus.set_state(bus.current_state, bus.current_detail)
+            logger.info("[Engine] dynamically switched to %s", target)
+            return True
+        except Exception as exc:
+            logger.error("Engine switch to %s failed (%s); reverting to %s.", target, exc, previous_name)
+            try:
+                fallback = _make_engine(previous_name, bus, tts)
+                await fallback.start()
+                if wake_listener_holder[0]:
+                    fallback.wake_listener = wake_listener_holder[0]
+                engine_holder[0] = fallback
+                engine_name = previous_name
+                bus.engine = fallback
+                bus.engine_name = previous_name
+                bus.current_effort = getattr(fallback, "effort", bus.current_effort)
+            except Exception as fb_exc:
+                logger.error("Revert to %s failed: %s", previous_name, fb_exc)
+            return False
+
+    bus.switch_engine = switch_engine
 
     def on_wake_speech(pcm_bytes: bytes):
         bus.set_state("thinking", "Transcribing speech…")
@@ -2689,28 +3046,57 @@ async def main():
     bus.dismiss_hot_mic = wake_listener.disarm_hot_mic
     bus.arm_hot_mic = wake_listener.arm_hot_mic
 
-    # Pre-warm BGE-small INT8 ONNX dispatcher immediately at startup
+    # Pre-warm the BGE-small INT8 ONNX dispatcher off the event loop and in
+    # parallel with engine startup. This import chain used to block the loop
+    # for 10-34s (transformers/torch); the dispatcher now loads via the
+    # lightweight tokenizers runtime, and even that cost no longer stalls the
+    # UI socket, HTTP server, or Codex handshake.
+    async def _prewarm_dispatcher():
+        try:
+            from reflex_router import get_gideon_dispatcher
+            disp = await asyncio.to_thread(get_gideon_dispatcher)
+            if disp is not None:
+                await asyncio.to_thread(disp.predict, "warmup")
+                logger.info("GIDEON Tier-1 BGE-small classifier pre-warmed and ready for instant evaluation.")
+        except Exception as e:
+            logger.warning(f"Failed pre-warming BGE-small: {e}")
+
+    asyncio.create_task(_prewarm_dispatcher())
+
+    # Web HUD deprecated (2026-11-20): the :8790 browser portal no longer
+    # starts by default. Opt back in with GIDEON_ENABLE_HUD=1.
+    if HUD_ENABLED:
+        server_thread = threading.Thread(
+            target=run_visualizer_server,
+            args=(bus, recorder, lambda: listener_instance[0], lambda: engine_holder[0], lambda: wake_listener_holder[0], loop, lambda: tts),
+            daemon=True
+        )
+        server_thread.start()
+    else:
+        logger.info("Web HUD deprecated and disabled; :8790 server not started (GIDEON_ENABLE_HUD=1 to re-enable).")
+
     try:
-        from reflex_router import get_gideon_dispatcher
-        disp = get_gideon_dispatcher()
-        if disp is not None:
-            disp.predict("warmup")
-            logger.info("GIDEON Tier-1 BGE-small classifier pre-warmed and ready for instant evaluation.")
-    except Exception as e:
-        logger.warning(f"Failed pre-warming BGE-small: {e}")
-
-    # Start integrated visualizer HTTP server IMMEDIATELY
-    server_thread = threading.Thread(
-        target=run_visualizer_server,
-        args=(bus, recorder, lambda: listener_instance[0], lambda: engine_holder[0], lambda: wake_listener_holder[0], loop, lambda: tts),
-        daemon=True
-    )
-    server_thread.start()
-
-    await engine.start()
+        await engine.start()
+    except Exception as exc:
+        if engine_name != "agy":
+            logger.error("Engine %s failed to start (%s); falling back to Antigravity (agy).", engine_name, exc)
+            await _shutdown_engine(engine)
+            engine_name = "agy"
+            engine = _make_engine("agy", bus, tts)
+            engine.wake_listener = wake_listener
+            engine_holder[0] = engine
+            bus.engine = engine
+            bus.engine_name = "agy"
+            bus.current_effort = getattr(engine, "effort", "low")
+            await engine.start()
+            tts.queue_sentence("Codex failed to start, so I fell back to Antigravity.")
+        else:
+            raise
 
     logger.info("Gideon online. Initializing STT engine...")
-    listener_instance[0] = VoiceListener()
+    # Load STT off the event loop so the UI socket and HTTP server stay
+    # responsive during the ~4-7s ONNX session build.
+    listener_instance[0] = await asyncio.to_thread(VoiceListener)
     listener = listener_instance[0]
 
     # Start background wake word listener
@@ -2727,7 +3113,7 @@ async def main():
     await stdin_reader.start()
 
     print("\n" + "="*65, flush=True)
-    print(" GIDEON PRIME EXECUTIVE CONSOLE [agy] ", flush=True)
+    print(f" GIDEON PRIME EXECUTIVE CONSOLE [{engine_name}] ", flush=True)
     print(" • WAKE WORD: Say 'Hey Jarvis' to speak hands-free", flush=True)
     print(" • HOLD SPACE IN BROWSER to speak (release to send)", flush=True)
     print(" • Or type any query directly in browser or terminal", flush=True)
@@ -2738,6 +3124,12 @@ async def main():
     while True:
         try:
             user_in = await stdin_reader.prompt_line("You [Hey Jarvis / HOLD SPACE in browser / type]: ")
+
+            if user_in is None:
+                # Headless (systemd) or stdin EOF: idle without ever opening
+                # the microphone. Wake word / browser PTT remain the inputs.
+                await asyncio.sleep(3600)
+                continue
 
             if user_in.lower() in ("quit", "exit"):
                 break

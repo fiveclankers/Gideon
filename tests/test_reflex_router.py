@@ -898,6 +898,33 @@ class TestPendingConfirmationRoundTrip(unittest.IsolatedAsyncioTestCase):
         tts.play_sound.assert_not_awaited()
 
 
+class TestMusicFillerExclusion(unittest.TestCase):
+    def test_filler_music_phrases_escalate_instead_of_searching_literal_words(self):
+        for phrase in (
+            "play more",
+            "play some more",
+            "play more music",
+            "play something else",
+            "play anything else",
+            "play something new",
+            "play something different",
+            "play another song",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIsNone(router.parse_command(phrase))
+
+        self.assertEqual(router.parse_command("play something")["kind"], "any")
+        self.assertEqual(
+            router.parse_command("play More Than a Feeling"),
+            {
+                "intent": "music_play",
+                "kind": "search",
+                "value": "More Than a Feeling",
+                "summary": "search music More Than a Feeling",
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -96,3 +96,53 @@ Whisper uses an encoder-decoder Transformer architecture:
 ## 3. Verification
 
 `pytest tests/` under the rebuilt venv: **141 passed, 230 subtests**. Daemon restarted and live-verified: BGE classifier pre-warmed, Whisper turbo on CUDA, `openWakeWord loaded models: ['hey_jarvis_v0.1']`, agy engine connected, HTTP Host gate active.
+
+---
+
+# GIDEON Engineering Audit — 2026-11-20 Session
+**Date:** 2026-11-20
+**Scope:** Full architecture audit of the live Codex-engine daemon (uncommitted codex migration included): correctness bugs, security completion, and measured latency work. Artistic/tuned choices (Tier-0 regex scope, hot-mic windows, silence budgets, wake thresholds, sentence-splitter, persona) deliberately untouched.
+
+## 1. Real bugs found and fixed (with evidence)
+
+1. **Phantom hourly microphone capture under systemd (Critical).** `StdinReader.prompt_line()` returned `""` after a 3600s sleep when stdin was not a TTY; `main()` interprets `""` as "record a 5s terminal mic chunk". Under `gideon.service` (stdin=/dev/null) the daemon opened the mic and dispatched room audio as a user prompt every hour. Confirmed twice in the journal: Nov 19 mic OPEN 16:11:36 = ready 15:11:36 + 3600s (159,690 bytes ≈ 5.0s), and live-captured Nov 20 10:30:08 = ready 09:30:08 + 3600s (161,412 bytes). Fix: `prompt_line()` returns a `None` sentinel; the main loop idles on `None` without touching the recorder.
+2. **TTS sanitizer decapitated leading decimals.** The list-marker regex `^\s*(?:\d{1,2}[.)]|[-*•])\s*` turned "9.81 meters per second squared." into "81 meters…", "3.14 is roughly pi." into "14 is roughly pi.", "12.5 percent growth." into "5 percent growth." (demonstrated pre-fix). Numeric markers now require trailing whitespace; bullets no longer eat a following digit ("-40 degrees"). All existing list/heading spec tests still pass; new regressions added.
+3. **Acoustic barge-in did not stop the turn.** `on_barge_in` only called `tts.interrupt()`; the engine kept streaming deltas and queueing fresh sentences, so Gideon resumed speaking over the user within ~1s. Now `WakeWordListener._handle_barge_in()` interrupts `bus.engine` (both engines' `interrupt()` cancels the turn and clears speech), falling back to TTS-only when no engine is bound.
+4. **2026-10-25 Host-gate hardening was incomplete (security).** A cross-origin `fetch('http://127.0.0.1:8790/api/prompt')` still carries `Host: 127.0.0.1:8790`, so the Host check never blocked it, and `Access-Control-Allow-Origin: *` let any page read `/state` transcripts (user + reply text) and drive prompt injection into a full-access shell engine (browser local-network rules were the only, uneven, defense). Added an Origin allowlist: foreign Origins (incl. `null`) get 403 on GET/POST/OPTIONS; loopback origins get an echoed CORS header (cross-port HUD/visualizer use keeps working); no-Origin requests (same-origin HUD, curl) unchanged. Verified against the real embedded server on an ephemeral port (8 new tests).
+5. **Dispatcher init race.** `get_gideon_dispatcher()` check-then-set is now guarded by a `threading.Lock` (pre-warm moved off-loop, so a first prompt could race it).
+
+## 2. Measured latency work (before → after, on this 4-core box)
+
+| Path | Before | After | How |
+| --- | --- | --- | --- |
+| Boot critical path | ~47s (journal: 09:29:21→09:30:08; 34s BGE gap) | **8.1s** sequential, less in-daemon (parallel) | `transformers` AutoTokenizer (10.6s warm / up to 34s cold import chain incl. torch) replaced by `tokenizers.Tokenizer` (0.1s) with **exact encoding parity** (no_padding + truncation 512, verified on 11 samples incl. unicode/2000-char truncation); BGE pre-warm and STT init moved to `asyncio.to_thread`, pre-warm overlaps Codex handshake. torch/transformers no longer imported at all on the Parakeet boot path. |
+| Fish TTS per-sentence connect | 389ms warm / 1613ms cold handshake **per sentence** | **0ms** sentences 2..N; first sentence's handshake hidden behind LLM time | Verified Fish live API supports sequential sessions on one socket. Finished sessions hand their OPEN socket to a warm pool (TTL 30s); `prewarm_ws()` fires at `send_prompt`; stale sockets retry once fresh before any audio; interrupts close warm sockets. Live probe: 3 sentences, 1 connection, first-audio 689/945/835ms. |
+| Waveform DSP per 160ms chunk | 9.43ms on the event loop | **0.65ms** (14.5×) | Hann/rfftfreq/geomspace/64-band masks cached (`lru_cache`), band means vectorized to one matmul; empty-band fallback preserved. Numerical parity test vs reference implementation (rtol 1e-4). |
+| Parakeet STT (3.7s utterance) | 675–1002ms (3 intra-op threads) | **576–878ms** (2 threads) | Thread sweep 2/3/4: extra threads contend with wake loop on 4 cores. |
+| PortAudio PTT callback | scipy import + double `np.max` per chunk | hoisted module ref, single reduction | Real-time callback hygiene. |
+| Wake RMS bars | 32 `np.sin` calls per chunk | precomputed shape vector | Same values. |
+
+Voice-turn floor left as tuned (artistic): ~960ms trailing-silence budget (12×80ms chunks), wake patience/refractory, hot-mic windows. pw-play spawn measured at 6.3ms — not worth a persistent-process refactor.
+
+## 3. Verified NOT bugs (checked, left alone)
+
+- Codex `turn/start` `effort` param: confirmed in `codex app-server generate-json-schema` ("Override the reasoning effort for this turn and subsequent turns") — in-thread `set_effort` is protocol-correct.
+- No-regex-gate philosophy, dismissal "bye bye" precedence, hallucination filters, selected-text opt-in clipboard contract, agy queued-stop interrupt semantics, watchdog 45s check-ins: deliberate, untouched.
+- `_copy_reply_after_turn` fast-turn copy: a proposed `started` guard broke the documented finished-before-watcher contract (test caught it); upstream `set_user_transcript` already clears stale replies. Reverted.
+
+## 4. Verification
+
+`pytest tests/` (venv `/home/cat/jarvis/.venv`): **234 passed, 287 subtests** (213 pre-existing + 21 new regressions in `tests/test_audit_regressions.py`). Live probes: Fish WS reuse (1 connect / 3 sentences), boot simulation (8.1s, no torch/transformers), phantom-mic journal capture on the still-running old daemon. Changes are in the working tree alongside the owner's uncommitted Codex migration; `gideon.service` NOT restarted (owner permission required).
+
+## 5. Addendum — HUD deprecation & efficiency pass (2026-11-20, owner directive)
+
+- **Web HUD/PTT portal deprecated and disabled by default.** The :8790 embedded HTTP server (browser HUD, hold-to-talk, /api/* routes) no longer starts; `GIDEON_ENABLE_HUD=1` opts back in. Wake word + hot mic and the Quickshell orb socket are unaffected. Honest accounting: the server was a thread inside the daemon, so disabling it frees negligible RAM by itself — the real savings below come from the ONNX arena change.
+- **Default Codex reasoning effort: remains xhigh.** A brief xhigh→low change was made on a misreading of "more efficient ways of thinking" and reverted immediately on owner correction: Luna is genuinely unusable below xhigh. Guard comment added at `DEFAULT_CODEX_EFFORT`; factory test asserts xhigh. Engine effort is NOT a latency tuning knob for this system.
+- **Parakeet ONNX CPU memory arena disabled** (`enable_cpu_mem_arena=False`): measured load RSS 1228→1048MB, peak 1278→1075MB (~200MB saved) at equal transcription latency (493-559ms vs 461-617ms).
+- Suite still green: 234 passed, 287 subtests.
+
+## 6. Addendum — dead waveform computation gated (2026-11-20, owner directive)
+
+- With the HUD deprecated, `bus.current_samples` (64-band waveform) had exactly one reader: the dead `/state` HTTP endpoint. The orb renders scalar `rms` events only. Producers now skip the spectral math when `bus.waveform_enabled` is false (set from `HUD_ENABLED` in `main()`): TTS playback passes `with_bands=False` to `_extract_audio_frames` (0.573→0.123 ms/chunk; RMS math bit-identical, regression-tested), and the PTT recorder FFT + wake-listener bar construction are skipped entirely. **All `broadcast_rms` telemetry is untouched** — the orb's listening ripple and speaking-ring amplitude ride on rms, not bars. Opt-in HUD mode (`GIDEON_ENABLE_HUD=1`) restores full waveform behavior.
+- Owner artistic directives recorded (do not "fix"): the synthetic speaking rings are deliberate (real-audio reactivity was too spiky + fan noise on the mic); subtitles/heard-text were tried in older versions and rejected as ugly; the thinking-badge + orbit-spinner loading treatment is disliked and slated for a redesign discussion, not a unilateral repaint.
+- Suite: 238 passed, 287 subtests (4 new gate regressions).

@@ -37,11 +37,27 @@ class TestGideonReflexIntegration(unittest.IsolatedAsyncioTestCase):
             mock_rf.assert_called_once_with(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "1"])
             self.bus.set_state.assert_called_with("idle")
 
-    async def test_try_reflex_engine_switch_reports_antigravity_only(self):
+    async def test_try_reflex_engine_switch_supports_codex_agy_and_rejects_opencode(self):
+        mock_set_engine = AsyncMock(return_value=True)
         with patch.object(self.tts, "speak") as mock_speak:
-            handled = await try_reflex("switch to opencode", bus=self.bus, tts=self.tts)
+            handled = await try_reflex("switch to opencode", bus=self.bus, tts=self.tts, set_engine=mock_set_engine)
             self.assertTrue(handled)
-            mock_speak.assert_called_once_with("Antigravity is already the active engine.")
+            mock_set_engine.assert_not_awaited()
+            mock_speak.assert_called_once_with("Only Codex and Antigravity engines are supported.")
+
+        mock_set_engine.reset_mock()
+        with patch.object(self.tts, "speak") as mock_speak:
+            handled = await try_reflex("switch to antigravity", bus=self.bus, tts=self.tts, set_engine=mock_set_engine)
+            self.assertTrue(handled)
+            mock_set_engine.assert_awaited_once_with("agy")
+            mock_speak.assert_called_once_with("Switched engine to Antigravity.")
+
+        mock_set_engine.reset_mock()
+        with patch.object(self.tts, "speak") as mock_speak:
+            handled = await try_reflex("switch to codex", bus=self.bus, tts=self.tts, set_engine=mock_set_engine)
+            self.assertTrue(handled)
+            mock_set_engine.assert_awaited_once_with("codex")
+            mock_speak.assert_called_once_with("Switched engine to Codex.")
 
     async def test_non_reflex_query_returns_false(self):
         mock_set_engine = AsyncMock(return_value=True)

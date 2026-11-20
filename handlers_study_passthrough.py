@@ -174,7 +174,8 @@ async def handle_flash_note_add(params: Dict[str, Any], raw_text: str = "") -> H
 
 
 async def handle_engine_switch(params: Dict[str, Any], raw_text: str = "") -> HandlerResult:
-    return HandlerResult(ok=True, message="Antigravity is already the active engine.", data={"engine": "agy"})
+    target = params.get("engine") or "codex"
+    return HandlerResult(ok=True, message=f"Engine target: {target}", data={"engine": target})
 
 
 # Pass-Through Router Handlers
