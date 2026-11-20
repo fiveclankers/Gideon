@@ -27,117 +27,12 @@ ShellRoot {
     property real   lastRmsMs: 0
     property double lastMsgMs: 0 // proof-of-life: updated on every socket line
 
-    // Dynamic cognitive verbs for thinking/conversing (Claude-Code-style vocabulary)
-    readonly property var gerundList: [
-        "Alchemizing",
-        "Architecting",
-        "Bamboozling",
-        "Befuddling",
-        "Brainstorming",
-        "Brewing",
-        "Calibrating",
-        "Canvassing",
-        "Cataloging",
-        "Channeling",
-        "Choreographing",
-        "Coalescing",
-        "Cogitating",
-        "Cognitating",
-        "Combobulating",
-        "Communing",
-        "Concocting",
-        "Conjuring",
-        "Contemplating",
-        "Crystallizing",
-        "Curating",
-        "Deciphering",
-        "Defragmenting",
-        "Deliberating",
-        "Demystifying",
-        "Discombobulating",
-        "Disentangling",
-        "Distilling",
-        "Divining",
-        "Elucidating",
-        "Envisioning",
-        "Extrapolating",
-        "Ferreting",
-        "Fiddling",
-        "Finagling",
-        "Forging",
-        "Formulating",
-        "Frolicking",
-        "Germinating",
-        "Gesticulating",
-        "Harmonizing",
-        "Hatching",
-        "Herding",
-        "Ideating",
-        "Illuminating",
-        "Improvising",
-        "Incubating",
-        "Interweaving",
-        "Inventing",
-        "Investigating",
-        "Kneading",
-        "Levitating",
-        "Manifesting",
-        "Marinating",
-        "Meandering",
-        "Metamorphosing",
-        "Moseying",
-        "Mulling",
-        "Munging",
-        "Musing",
-        "Navigating",
-        "Noodling",
-        "Orchestrating",
-        "Origamizing",
-        "Osmosing",
-        "Perambulating",
-        "Percolating",
-        "Philosophising",
-        "Pondering",
-        "Pontificating",
-        "Puzzling",
-        "Recombining",
-        "Refactoring",
-        "Reticulating",
-        "Ruminating",
-        "Rummaging",
-        "Schlepping",
-        "Simmering",
-        "Sleuthing",
-        "Speculating",
-        "Spelunking",
-        "Synthesizing",
-        "Tinkering",
-        "Transmogrifying",
-        "Transmuting",
-        "Unearthing",
-        "Unfurling",
-        "Unraveling",
-        "Untangling",
-        "Whittling",
-        "Wrangling"
-    ]
-    property int gerundIndex: 0
-    readonly property string currentGerund: gerundList[gerundIndex]
-
-    // Rotate whimsical gerunds every 1.8s during thinking/conversing (non-repeating random)
-    Timer {
-        id: gerundTimer
-        interval: 1800
-        running: root.orbState === "thinking" || root.orbState === "conversing"
-        repeat: true
-        onTriggered: {
-            const len = root.gerundList.length
-            if (len > 1) {
-                const offset = 1 + Math.floor(Math.random() * (len - 1))
-                root.gerundIndex = (root.gerundIndex + offset) % len
-            }
-        }
-    }
+    // The whimsical gerund vocabulary (Alchemizing, Combobulating, Schlepping,
+    // Discombobulating, …) retired from display 2026-11-20: the owner loved the
+    // words but hated the badge typography. Full list preserved in git history
+    // (commit d401e21) for a future, better-designed revival.
+    // Option A: the orb IS the indicator — shader state presets carry meaning,
+    // no spinner ring, no status badge.
 
     // Dock orb to edge when idle
     readonly property bool isHiding: root.orbState === "idle"
@@ -162,28 +57,28 @@ ShellRoot {
         thinking: {
             diam: 92, morph: 0.82, spin: 3.40, hueSpeed: 0.38, speak: 0, hot: 0,
             c1: "#047857", c2: "#6ee7b7", c3: "#0f2922",
-            label: "Thinking…", ringMode: "orbit", accent: "#a7f3d0",
+            label: "Thinking…", ringMode: "none", accent: "#a7f3d0",
             badgeBg: Qt.rgba(0.03, 0.14, 0.10, 0.90),
             badgeBorder: Qt.rgba(0.4, 0.9, 0.7, 0.40)
         },
         conversing: {
             diam: 94, morph: 0.85, spin: 3.30, hueSpeed: 0.40, speak: 0, hot: 0,
             c1: "#4f46e5", c2: "#9333ea", c3: "#1e1b4b",
-            label: "Conversing…", ringMode: "orbit", accent: "#c084fc",
+            label: "Conversing…", ringMode: "none", accent: "#c084fc",
             badgeBg: Qt.rgba(0.12, 0.08, 0.24, 0.92),
             badgeBorder: Qt.rgba(0.7, 0.4, 1.0, 0.45)
         },
         bge_reflex: {
             diam: 98, morph: 0.60, spin: 2.80, hueSpeed: 0.28, speak: 0, hot: 0,
             c1: "#059669", c2: "#06b6d4", c3: "#022c22",
-            label: "BGE Reflex", ringMode: "scan", accent: "#34d399",
+            label: "BGE Reflex", ringMode: "none", accent: "#34d399",
             badgeBg: Qt.rgba(0.02, 0.18, 0.14, 0.94),
             badgeBorder: Qt.rgba(0.2, 0.95, 0.65, 0.55)
         },
         toolcall: {
             diam: 92, morph: 0.65, spin: 2.90, hueSpeed: 0.18, speak: 0, hot: 0.25,
             c1: "#d97706", c2: "#15803d", c3: "#451a03",
-            label: "Executing tool…", ringMode: "scan", accent: "#fbbf24",
+            label: "Executing tool…", ringMode: "none", accent: "#fbbf24",
             badgeBg: Qt.rgba(0.18, 0.10, 0.02, 0.92),
             badgeBorder: Qt.rgba(0.95, 0.7, 0.2, 0.45)
         },
@@ -208,33 +103,6 @@ ShellRoot {
     readonly property color effC1: root.activePreset.c1
     readonly property color effC2: root.activePreset.c2
     readonly property color effC3: root.activePreset.c3
-
-    readonly property string effectiveStatusLabel: {
-        let d = String(stateDetail).trim()
-        d = d.replace(/[^\x00-\x7F\u2026\u26A1]/g, "").trim()
-        if (d.length > 0) {
-            // Priority 1: BGE reflex badge
-            if (d.indexOf("BGE") !== -1) {
-                return d
-            }
-            // Priority 2: LLM formulating or synthesizing speech
-            if (d.indexOf("Formulating") !== -1 || d.indexOf("Synthesizing") !== -1) {
-                return d.replace(/^LLM:\s*/i, "")
-            }
-            // Priority 3: LLM thinking with rotating Claude gerund
-            if (d.indexOf("LLM") !== -1 && (d.indexOf("Thinking") !== -1 || d.indexOf("Routing") !== -1)) {
-                return currentGerund + "…"
-            }
-            return d.replace(/^LLM:\s*/i, "")
-        }
-        if (orbState === "conversing" || orbState === "thinking") {
-            return currentGerund + "…"
-        }
-        if (orbState === "speaking") {
-            return "Speaking…"
-        }
-        return activePreset.label
-    }
 
     function normalizeState(rawVal) {
         if (!rawVal) return "idle"
@@ -383,14 +251,14 @@ ShellRoot {
                 property real slideY: root.isHiding ? -12 : 0
                 Behavior on slideX {
                     NumberAnimation {
-                        duration: 700
-                        easing.type: Easing.InOutCubic
+                        duration: root.isHiding ? 700 : 500
+                        easing.type: root.isHiding ? Easing.InOutCubic : Easing.OutCubic
                     }
                 }
                 Behavior on slideY {
                     NumberAnimation {
-                        duration: 700
-                        easing.type: Easing.InOutCubic
+                        duration: root.isHiding ? 700 : 500
+                        easing.type: root.isHiding ? Easing.InOutCubic : Easing.OutCubic
                     }
                 }
                 transform: Translate { x: orb.slideX; y: orb.slideY }
@@ -408,8 +276,10 @@ ShellRoot {
                 property real activeScale: root.isHiding ? 0.44 : 1.0
                 Behavior on activeScale {
                     NumberAnimation {
-                        duration: 700
-                        easing.type: root.isHiding ? Easing.InBack : Easing.OutBack
+                        // Exit keeps the liked InBack tuck; entrance is a plain
+                        // 500ms OutCubic unfurl — no OutBack overshoot bounce.
+                        duration: root.isHiding ? 700 : 500
+                        easing.type: root.isHiding ? Easing.InBack : Easing.OutCubic
                         easing.overshoot: 1.15
                     }
                 }
@@ -512,33 +382,6 @@ ShellRoot {
                         Behavior on width { NumberAnimation { duration: 60 } }
                     }
 
-                    // Orbiting satellite ring for thinking/conversing/scan states
-                    Item {
-                        id: orbitSpinner
-                        anchors.centerIn: parent
-                        width: 132
-                        height: 132
-                        visible: root.activePreset.ringMode === "orbit" || root.activePreset.ringMode === "scan"
-
-                        RotationAnimation on rotation {
-                            from: 0
-                            to: 360
-                            duration: root.activePreset.ringMode === "scan" ? 1400 : 2000
-                            loops: Animation.Infinite
-                            running: orbitSpinner.visible
-                        }
-
-                        Rectangle {
-                            width: root.activePreset.ringMode === "scan" ? 22 : 7
-                            height: 4
-                            radius: 2
-                            color: root.activePreset.accent
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            anchors.top: parent.top
-                            anchors.topMargin: -2
-                        }
-                    }
-
                     // Concentric Acoustic Wave Equalizer Rings for SPEAKING state
                     Item {
                         id: speechAcousticRings
@@ -615,37 +458,6 @@ ShellRoot {
                     scale: (0.55 + 0.45 * orb.appear) * orb.activeScale
                     opacity: Math.min(1.0, orb.appear) * orb.activeOpacity * (orb.online ? 1.0 : 0.85)
                     Behavior on opacity { NumberAnimation { duration: 400 } }
-                }
-
-                // Bare status label, positioned from the visible orb rather than its canvas.
-                Item {
-                    id: stateBadge
-                    readonly property bool showBadge: !root.isHiding && root.effectiveStatusLabel.length > 0
-                    y: Math.round((parent.height + orb.diam) * 0.5 + 16)
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    height: statusLabelText.implicitHeight
-                    width: Math.round(parent.width * 0.8)
-
-                    opacity: showBadge ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-
-                    Text {
-                        id: statusLabelText
-                        anchors.fill: parent
-                        text: root.effectiveStatusLabel
-                        textFormat: Text.PlainText
-                        color: "#C8D2DE"
-                        font.family: "Inter"
-                        font.pixelSize: 14
-                        font.weight: Font.Medium
-                        renderType: Text.QtRendering
-                        antialiasing: true
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        wrapMode: Text.NoWrap
-                        maximumLineCount: 1
-                        elide: Text.ElideRight
-                    }
                 }
 
             }
