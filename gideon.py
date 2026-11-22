@@ -1298,7 +1298,7 @@ CODING_DIRECTIVE = (
 
 
 def classify_turn_directive(text: str, dispatcher: Any = None, intent_id: Optional[str] = None) -> Optional[str]:
-    """Classifies a prompt via the loaded BGE dispatcher to pick a dynamic directive."""
+    """Classifies a prompt via the active Tier-1 router to pick a dynamic directive."""
     if intent_id is None:
         if dispatcher is None:
             rr = sys.modules.get("reflex_router")
@@ -3046,20 +3046,22 @@ async def main():
     bus.dismiss_hot_mic = wake_listener.disarm_hot_mic
     bus.arm_hot_mic = wake_listener.arm_hot_mic
 
-    # Pre-warm the BGE-small INT8 ONNX dispatcher off the event loop and in
-    # parallel with engine startup. This import chain used to block the loop
-    # for 10-34s (transformers/torch); the dispatcher now loads via the
-    # lightweight tokenizers runtime, and even that cost no longer stalls the
-    # UI socket, HTTP server, or Codex handshake.
+    # Pre-warm Tier-1 off the event loop and in parallel with engine startup.
+    # In decision mode only the lightweight client is initialized: there is no
+    # startup API call and BGE-small is deliberately left cold for fallback.
     async def _prewarm_dispatcher():
         try:
-            from reflex_router import get_gideon_dispatcher
+            from reflex_router import get_gideon_dispatcher, tier1_mode
+            if tier1_mode() == "decision":
+                await asyncio.to_thread(get_gideon_dispatcher)
+                logger.info("GIDEON Tier-1 Decision 1 router active; BGE-small remains cold for fallback.")
+                return
             disp = await asyncio.to_thread(get_gideon_dispatcher)
             if disp is not None:
                 await asyncio.to_thread(disp.predict, "warmup")
                 logger.info("GIDEON Tier-1 BGE-small classifier pre-warmed and ready for instant evaluation.")
         except Exception as e:
-            logger.warning(f"Failed pre-warming BGE-small: {e}")
+            logger.warning(f"Failed pre-warming Tier-1 router: {e}")
 
     asyncio.create_task(_prewarm_dispatcher())
 

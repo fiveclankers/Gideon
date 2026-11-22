@@ -675,8 +675,20 @@ _gideon_dispatcher_instance: Any = None
 _dispatcher_init_lock = threading.Lock()
 
 
+def tier1_mode() -> str:
+    """Resolve the selected Tier-1 router (delegates to the decision router)."""
+    from decision_router import select_tier1_mode
+
+    return select_tier1_mode()
+
+
 def get_gideon_dispatcher() -> Any | None:
-    """Lazily load the Tier-1 BGE-small INT8 ONNX dispatcher (thread-safe)."""
+    """Lazily load the configured Tier-1 dispatcher (thread-safe).
+
+    ``GIDEON_TIER1_ROUTER=decision`` uses Gemini Decision 1 with a cold
+    BGE-small fallback; ``bge`` keeps the legacy local-only path. Tier-0
+    regex reflexes are handled before this function is ever called.
+    """
     global _gideon_dispatcher_instance
     if _gideon_dispatcher_instance is not None:
         return _gideon_dispatcher_instance if _gideon_dispatcher_instance is not False else None
@@ -684,12 +696,22 @@ def get_gideon_dispatcher() -> Any | None:
         if _gideon_dispatcher_instance is not None:
             return _gideon_dispatcher_instance if _gideon_dispatcher_instance is not False else None
         try:
-            from gideon_handler import GideonDispatcher
-            _gideon_dispatcher_instance = GideonDispatcher()
-            logger.info("Initialized Tier-1 GideonDispatcher (BGE-small INT8 ONNX)")
+            if tier1_mode() == "decision":
+                from decision_router import GeminiDecisionDispatcher
+
+                _gideon_dispatcher_instance = GeminiDecisionDispatcher()
+                logger.info(
+                    "Initialized Tier-1 GeminiDecisionDispatcher "
+                    "(gemini-decision-1; BGE-small cold fallback)"
+                )
+            else:
+                from gideon_handler import GideonDispatcher
+
+                _gideon_dispatcher_instance = GideonDispatcher()
+                logger.info("Initialized Tier-1 GideonDispatcher (BGE-small INT8 ONNX)")
             return _gideon_dispatcher_instance
         except Exception:
-            logger.exception("Unable to load Tier-1 GideonDispatcher")
+            logger.exception("Unable to load Tier-1 dispatcher")
             _gideon_dispatcher_instance = False
             return None
 
@@ -913,7 +935,7 @@ async def try_reflex(
         logger.info("[Tier-0 Reflex] dismiss (%.1fms): back to idle", elapsed_ms)
         return True
 
-    # 2. Check for pending confirmation before running Tier-0 or BGE
+    # 2. Check for pending confirmation before running Tier-0 or Tier-1
     pending, _was_expired = _pending_confirmation_store.pop()
     cancelled_pending = False
     if pending is not None:
@@ -978,13 +1000,13 @@ async def try_reflex(
             await _speak_cancelled_if_needed()
             return False
         # Conversation about a play/performance must not be classified as a
-        # media command. BGE is trained on atomic commands and over-fires on
-        # "play" in short conversational replies.
+        # media command. Tier-1 intent classifiers are trained on atomic
+        # commands and over-fire on "play" in short conversational replies.
         if _looks_conversational(text):
             logger.info("[Tier-1 bypass] conversational utterance routed to LLM: %r", text[:120])
             await _speak_cancelled_if_needed()
             return False
-        # Tier-1: Neural Reflex Dispatcher (GIDEON v2 BGE-small INT8 ONNX sequence classification)
+        # Tier-1: configured intent classifier (Decision 1 or BGE-small)
         dispatcher = get_gideon_dispatcher()
         if dispatcher is not None:
             try:
