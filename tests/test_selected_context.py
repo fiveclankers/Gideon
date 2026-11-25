@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 import asyncio
+import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -93,7 +94,10 @@ class TestSelectedContext(unittest.TestCase):
     @patch("selected_context.subprocess.Popen")
     def test_wayland_reader_uses_primary_before_clipboard(self, popen):
         primary = MagicMock()
-        primary.stdout.read.return_value = "primary text".encode()
+        primary_read, primary_write = os.pipe()
+        os.write(primary_write, b"primary text")
+        os.close(primary_write)
+        primary.stdout = os.fdopen(primary_read, "rb")
         primary.poll.return_value = 0
         primary.wait.return_value = 0
         clipboard = MagicMock()
@@ -105,6 +109,7 @@ class TestSelectedContext(unittest.TestCase):
         from selected_context import read_wayland_selection
 
         self.assertEqual(read_wayland_selection(), "primary text")
+        self.assertTrue(primary.stdout.closed)
         popen.assert_called_once()
         self.assertEqual(popen.call_args.args[0], ["wl-paste", "--primary", "--no-newline"])
 

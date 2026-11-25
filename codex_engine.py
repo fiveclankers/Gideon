@@ -317,9 +317,10 @@ class _JsonRpcStdioTransport:
         try:
             await self._write_frame(frame)
             return await asyncio.wait_for(fut, timeout=timeout)
-        except Exception:
+        finally:
             self._pending.pop(req_id, None)
-            raise
+            if not fut.done():
+                fut.cancel()
 
     async def _write_frame(self, payload: dict[str, Any]) -> None:
         proc = self.proc
@@ -401,6 +402,8 @@ class _JsonRpcStdioTransport:
                     logger.debug("Disconnect handler failed", exc_info=True)
 
     async def _dispatch_message(self, msg: dict[str, Any]) -> None:
+        if msg.get("id") is not None and type(msg["id"]) not in (int, str):
+            return
         has_id = "id" in msg and msg["id"] is not None
         method = msg.get("method")
         if has_id and method:
@@ -593,7 +596,7 @@ class CodexEngine:
             self._thread_id = str(thread_id)
             self._last_start_time = time.monotonic()
             logger.info("Codex Engine connected and ready. (thread=%s)", self._thread_id)
-        except Exception:
+        except BaseException:
             await self._discard_transport()
             raise
 
@@ -939,7 +942,7 @@ class CodexEngine:
 
     async def _on_notification(self, method: str, params: dict[str, Any]) -> None:
         if method == "turn/started":
-            if self.is_turn_active and self._active_turn_gen == self._turn_generation:
+            if self._matches_active_turn(params):
                 turn_obj = params.get("turn")
                 tid = str(turn_obj.get("id")) if isinstance(turn_obj, dict) and turn_obj.get("id") else None
                 if tid and tid not in self._cancelled_turn_ids and self._active_turn_id is None:

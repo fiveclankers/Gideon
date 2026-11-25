@@ -325,8 +325,8 @@ def parse_command(text: str) -> dict[str, Any] | None:
         return None
     value = re.sub(r"[.!?]+$", "", raw).strip().lower()
     # Strip optional wake word prefix for zero-latency contiguous one-shot commands
-    value = re.sub(r"^(?:hey\s+)?jarvis\s*[,:]?\s*", "", value).strip()
-    raw_stripped = re.sub(r"^(?:hey\s+)?jarvis\s*[,:]?\s*", "", raw, flags=re.I).strip()
+    value = re.sub(r"^(?:(?:hey|okay|ok|hi)\s+)?(?:gideon|jarvis)\s*[,:]?\s*", "", value).strip()
+    raw_stripped = re.sub(r"^(?:(?:hey|okay|ok|hi)\s+)?(?:gideon|jarvis)\s*[,:]?\s*", "", raw, flags=re.I).strip()
     raw_command = re.sub(r"[.!?]+$", "", raw_stripped).strip()
     # Music commands are often polite requests; strip the wrapper before matching.
     music_command = re.sub(r"^(?:hey\s+)?(?:gideon|jarvis)\s*[,:]?\s*", "", raw_command, flags=re.I).strip()
@@ -561,37 +561,49 @@ async def hypr_socket_dispatch(cmd_str: str, timeout_s: float = 0.5) -> tuple[in
     sock_path = Path(xdg_runtime) / "hypr" / sig / ".socket.sock"
     if not sock_path.exists():
         return 1, f"socket not found at {sock_path}"
+    writer = None
     try:
         reader, writer = await asyncio.wait_for(
             asyncio.open_unix_connection(str(sock_path)), timeout=timeout_s
         )
         writer.write(("dispatch " + cmd_str + "\n").encode("utf-8"))
-        await writer.drain()
+        await asyncio.wait_for(writer.drain(), timeout=timeout_s)
         resp_bytes = await asyncio.wait_for(reader.read(1024), timeout=timeout_s)
-        writer.close()
-        await writer.wait_closed()
         resp = resp_bytes.decode("utf-8", errors="replace").strip()
         return (0, resp) if resp == "ok" else (1, resp)
     except Exception as exc:
         return 1, str(exc)
+    finally:
+        if writer is not None:
+            writer.close()
+            try:
+                await asyncio.wait_for(writer.wait_closed(), timeout=timeout_s)
+            except (OSError, asyncio.TimeoutError):
+                pass
 
 
 async def _exec_raw(argv: list[str], timeout_s: float) -> tuple[int, str]:
+    from gideon_shared import _stop_command_process
+
     if argv[0] == "hyprctl":
         ensure_hyprland_env()
+    process = None
     try:
         process = await asyncio.create_subprocess_exec(
             *argv,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
             env=os.environ.copy(),
+            start_new_session=os.name == "posix",
         )
         output, _ = await asyncio.wait_for(process.communicate(), timeout=timeout_s)
         return int(process.returncode or 0), output.decode("utf-8", errors="replace").strip()
     except asyncio.TimeoutError:
-        process.kill()
-        await process.communicate()
+        await _stop_command_process(process)
         return 124, "command timed out"
+    except asyncio.CancelledError:
+        await _stop_command_process(process)
+        raise
     except FileNotFoundError as exc:
         return 127, str(exc)
     except OSError as exc:
@@ -1039,19 +1051,21 @@ async def try_reflex(
                         target_engine = res.data.get("params", {}).get("engine", "codex")
                         if target_engine in ("antigravity", "anti-gravity", "anti gravity", "gemini"):
                             target_engine = "agy"
+                        elif target_engine in ("agy-headless", "headless", "antigravity-headless", "antigravity headless"):
+                            target_engine = "agy-headless"
                         elif target_engine in ("gpt-6-luna", "luna", "gpt"):
                             target_engine = "codex"
-                        if target_engine not in ("codex", "agy"):
+                        if target_engine not in ("codex", "agy", "agy-headless"):
                             logger.info("Tier-1 engine_switch: unsupported engine %r; only Codex/Antigravity supported", target_engine)
                             res.message = "Only Codex and Antigravity engines are supported."
                         elif set_engine is not None:
                             switched = await _await_if_needed(set_engine(target_engine))
-                            label = "Codex" if target_engine == "codex" else "Antigravity"
+                            label = "Codex" if target_engine == "codex" else ("Antigravity Headless" if target_engine == "agy-headless" else "Antigravity")
                             res.message = f"Switched engine to {label}." if switched else f"Couldn't switch engine to {label}."
                         else:
                             active = getattr(bus, "engine_name", "codex") if bus is not None else "codex"
-                            active_label = "Antigravity" if active == "agy" else "Codex"
-                            target_label = "Antigravity" if target_engine == "agy" else "Codex"
+                            active_label = "Antigravity" if active == "agy" else ("Antigravity Headless" if active == "agy-headless" else "Codex")
+                            target_label = "Antigravity" if target_engine == "agy" else ("Antigravity Headless" if target_engine == "agy-headless" else "Codex")
                             res.message = (
                                 f"{target_label} is already the active engine."
                                 if active == target_engine

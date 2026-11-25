@@ -19,5 +19,4 @@ sounddevice
 # Optional: CUDA execution for faster-whisper / ONNX
 # torch
 
-# Optional: wake-word detection (audio/wake.py)
-# openwakeword
+# Wake-word detection (audio/wake.py — uses Silero VAD ONNX + faster-whisper above)

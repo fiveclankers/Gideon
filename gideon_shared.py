@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import re
 import shlex
+import signal
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,7 +60,8 @@ def parse_number(text: str | None) -> Optional[float]:
         return None
     cleaned = re.sub(r"\s*(?:%|\bpercent\b)\s*$", "", text.strip(), flags=re.I).strip().lower()
     try:
-        return float(cleaned)
+        value = float(cleaned)
+        return value if math.isfinite(value) else None
     except ValueError:
         pass
     words = cleaned.replace("-", " ").split()
@@ -77,7 +80,35 @@ def parse_number(text: str | None) -> Optional[float]:
             matched = True
         else:
             return None
-    return total if matched else None
+    return total if matched and math.isfinite(total) else None
+
+
+def _kill_command_process(proc) -> None:
+    """Signal only a command started in its own process session."""
+    if proc is None:
+        return
+    try:
+        pid = getattr(proc, "pid", None)
+        if os.name == "posix" and isinstance(pid, int):
+            os.killpg(pid, signal.SIGKILL)
+        else:
+            proc.kill()
+    except ProcessLookupError:
+        pass
+
+
+async def _stop_command_process(proc) -> None:
+    """Kill an owned command session and reap it without waiting on stray pipes."""
+    if proc is None:
+        return
+    _kill_command_process(proc)
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=1.0)
+    except (asyncio.TimeoutError, OSError):
+        # A descendant can leave inherited pipes open after the parent exits.
+        transport = getattr(proc, "_transport", None)
+        if transport is not None:
+            transport.close()
 
 
 async def run_cmd_async(
@@ -91,6 +122,7 @@ async def run_cmd_async(
     if env:
         exec_env.update(env)
 
+    proc = None
     try:
         if isinstance(argv, str):
             proc = await asyncio.create_subprocess_shell(
@@ -99,6 +131,7 @@ async def run_cmd_async(
                 stderr=asyncio.subprocess.PIPE,
                 env=exec_env,
                 cwd=cwd,
+                start_new_session=os.name == "posix",
             )
         else:
             proc = await asyncio.create_subprocess_exec(
@@ -107,6 +140,7 @@ async def run_cmd_async(
                 stderr=asyncio.subprocess.PIPE,
                 env=exec_env,
                 cwd=cwd,
+                start_new_session=os.name == "posix",
             )
 
         stdout_bytes, stderr_bytes = await asyncio.wait_for(proc.communicate(), timeout=timeout)
@@ -114,12 +148,11 @@ async def run_cmd_async(
         stderr_str = stderr_bytes.decode("utf-8", errors="replace").strip()
         return proc.returncode if proc.returncode is not None else 0, stdout_str, stderr_str
     except asyncio.TimeoutError:
-        try:
-            proc.kill()
-            await proc.wait()
-        except Exception:
-            pass
+        await _stop_command_process(proc)
         return 124, "", f"Command timed out after {timeout} seconds"
+    except asyncio.CancelledError:
+        await _stop_command_process(proc)
+        raise
     except Exception as exc:
         return 1, "", str(exc)
 
@@ -135,33 +168,33 @@ def run_cmd(
     if env:
         exec_env.update(env)
 
+    proc = None
     try:
-        if isinstance(argv, str):
-            res = subprocess.run(
-                argv,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=timeout,
-                env=exec_env,
-                cwd=cwd,
-            )
-        else:
-            res = subprocess.run(
-                argv,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=timeout,
-                env=exec_env,
-                cwd=cwd,
-            )
-        return res.returncode, res.stdout.strip(), res.stderr.strip()
+        proc = subprocess.Popen(
+            argv,
+            shell=isinstance(argv, str),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=exec_env,
+            cwd=cwd,
+            start_new_session=os.name == "posix",
+        )
+        stdout, stderr = proc.communicate(timeout=timeout)
+        return proc.returncode, stdout.strip(), stderr.strip()
     except subprocess.TimeoutExpired:
+        _kill_command_process(proc)
+        proc.wait(timeout=1.0)
         return 124, "", f"Command timed out after {timeout} seconds"
     except Exception as exc:
         return 1, "", str(exc)
+    finally:
+        if proc is not None:
+            for pipe in (proc.stdout, proc.stderr):
+                if pipe is not None:
+                    pipe.close()
 
 
 # Parameter extraction regular expressions

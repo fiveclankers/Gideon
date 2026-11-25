@@ -1,0 +1,42 @@
+{
+  "music_play_local": {
+    "description": "Play local FLAC music by mood, genre, artist, album, playlist, or specific song title",
+    "risk": "low"
+  },
+  "music_play_online": {
+    "description": "Play something new, surprising, obscure, non-local, or queue online tracks for a vibe",
+    "risk": "low"
+  },
+  "music_control": {
+    "description": "Pause, resume, skip, previous, stop, shuffle, volume, or check what song is playing",
+    "risk": "low"
+  },
+  "audio_control": {
+    "description": "Change Windows system volume up/down/percent, mute/unmute audio or microphone",
+    "risk": "low"
+  },
+  "launch_app": {
+    "description": "Open or launch a Windows desktop application, tool, or game",
+    "risk": "low"
+  },
+  "agy_status": {
+    "description": "Check what Antigravity is currently doing, whether it finished, or how much longer it will take",
+    "risk": "low"
+  },
+  "ask_agy": {
+    "description": "Ask Antigravity specifically, or delegate a deep, multi-file, or long-horizon coding/research task to Antigravity",
+    "risk": "low"
+  },
+  "screen_context": {
+    "description": "Look at or capture the current screen, window, or visible error to explain or troubleshoot it",
+    "risk": "low"
+  },
+  "web_search": {
+    "description": "Look up live info, current news, prices, game wikis, or recent real-world facts",
+    "risk": "low"
+  },
+  "conversation": {
+    "description": "Casual chat, quick factual questions, explanations, or general reasoning",
+    "risk": "low"
+  }
+}

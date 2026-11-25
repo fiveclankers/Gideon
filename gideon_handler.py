@@ -299,7 +299,7 @@ class GideonDispatcher:
         4. Extract slot parameters
         5. Execute local handler or route pass-through
         """
-        intent_id, confidence, probs = self.predict(utterance)
+        intent_id, confidence, probs = await asyncio.to_thread(self.predict, utterance)
         intent_meta = self.schema.get(intent_id, {})
         risk_tier = intent_meta.get("risk_tier", "safe")
 
@@ -422,4 +422,3 @@ class GideonDispatcher:
         res.data["params"] = exec_params
         res.data["confirmed"] = True
         return res
-

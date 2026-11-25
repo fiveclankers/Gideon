@@ -49,3 +49,10 @@ signals/.voice_alert
 
 # Editor/tool backups
 *_bak
+
+# Windows port local runtime & binaries
+.venv/
+bin/
+sounds/acks/
+music_linux_ref.py
+

@@ -38,13 +38,7 @@ stdio, under an isolated `CODEX_HOME`
 (protocol-verified), `approvalPolicy: never`, and `sandbox: danger-full-access`.
 Interrupts use `turn/interrupt` against the observed turn id.
 
-The fallback `AntigravityEngine` launches `agy` with `--input-format
-stream-json`, `--output-format stream-json`, and an empty `-p` argument. Its
-persona is not a command-line prompt: on the first `send_prompt()` of a new
-conversation GIDEON prepends `GIDEON_VOICE_PREAMBLE` to the user message sent
-over stdin; subsequent messages omit it. Changing effort resumes the existing
-conversation when its ID is available. agy has no live cancel API, so its
-interrupt queues a stop instruction behind the active turn.
+The Antigravity backend (`agy`) is `ACPAntigravityEngine` (`acp_antigravity_engine.py`), which launches `agy acp` speaking Agent Client Protocol (newline-delimited JSON-RPC 2.0 over stdio). Its persona is delivered once during `session/new` via `_meta.antigravity.systemPrompt.append`. Turns stream live via `session/prompt` and `session/update` (`agent_message_chunk`, `tool_call`), model selection runs via `session/set_config_option` (`configId: "model"`), and tool permissions are answered natively via inbound `session/request_permission`. Live barge-in uses `session/cancel` (notification) and awaits terminal settlement. The legacy NDJSON engine (`AntigravityEngine`) is retained as `agy-headless` for headless rollback and extreme effort levels (`xhigh`, `max`).
 
 Before engine dispatch, explicit selected-text requests are prepared by
 `selected_context.py`. The current selection is wrapped as reference material

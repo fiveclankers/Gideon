@@ -402,7 +402,7 @@ class TestInterruption(unittest.IsolatedAsyncioTestCase):
         killed_proc = MagicMock(returncode=-15)
         killed_proc.poll.return_value = None
 
-        def _communicate(_wav):
+        def _communicate(_wav, timeout=None):
             player._interrupted_procs.add(killed_proc)
             return (b'', b'Terminated')
 

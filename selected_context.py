@@ -7,8 +7,11 @@ or the ``with selected text:`` prefix.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import re
+import selectors
 import subprocess
+import time
 from typing import Callable
 
 
@@ -102,15 +105,22 @@ def _read_paste_command(args: list[str]) -> str | None:
     truncated = False
     try:
         assert proc.stdout is not None
-        raw = proc.stdout.read(_MAX_SELECTION_BYTES)
+        raw = bytearray()
+        deadline = time.monotonic() + PASTE_TIMEOUT_S
+        with selectors.DefaultSelector() as selector:
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            while len(raw) < _MAX_SELECTION_BYTES:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not selector.select(remaining):
+                    raise subprocess.TimeoutExpired("wl-paste", PASTE_TIMEOUT_S)
+                chunk = os.read(proc.stdout.fileno(), _MAX_SELECTION_BYTES - len(raw))
+                if not chunk:
+                    break
+                raw.extend(chunk)
         truncated = len(raw) >= _MAX_SELECTION_BYTES
-        if proc.poll() is None:
+        if truncated and proc.poll() is None:
             proc.terminate()
-        try:
-            return_code = proc.wait(timeout=PASTE_TIMEOUT_S)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            return_code = proc.wait(timeout=PASTE_TIMEOUT_S)
+        return_code = proc.wait(timeout=max(0.001, deadline - time.monotonic()))
     except (OSError, subprocess.TimeoutExpired):
         try:
             proc.kill()
@@ -118,10 +128,13 @@ def _read_paste_command(args: list[str]) -> str | None:
         except (OSError, subprocess.TimeoutExpired):
             pass
         return None
+    finally:
+        if proc.stdout is not None:
+            proc.stdout.close()
 
     if return_code != 0 and not truncated:
         return None
-    return raw.decode("utf-8", errors="replace")
+    return bytes(raw).decode("utf-8", errors="replace")
 
 
 def read_wayland_selection() -> str:

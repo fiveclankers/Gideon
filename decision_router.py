@@ -19,6 +19,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -388,6 +389,8 @@ class GeminiDecisionDispatcher:
             if header is not None and str(header).strip():
                 try:
                     retry_after = float(str(header).strip())
+                    if not math.isfinite(retry_after):
+                        retry_after = None
                 except (TypeError, ValueError):
                     retry_after = None
             if retry_after is not None:
@@ -416,7 +419,7 @@ class GeminiDecisionDispatcher:
                 )
             except Exception as exc:  # timeouts, DNS/connect failures, mocked errors
                 last_error = exc
-                logger.warning("Decision 1 transport error: %s", exc)
+                logger.warning("Decision 1 transport error (%s)", type(exc).__name__)
                 continue
             status = getattr(response, "status_code", None)
             if status == 200:
@@ -440,8 +443,7 @@ class GeminiDecisionDispatcher:
                 last_error = DecisionAPIError(f"Decision 1 HTTP {status}")
                 logger.warning("Decision 1 HTTP %s; rotating key", status)
                 continue
-            detail = str(getattr(response, "text", ""))[:200]
-            raise DecisionAPIError(f"Decision 1 HTTP {status}: {detail}")
+            raise DecisionAPIError(f"Decision 1 HTTP {status}")
         if not self.api_keys:
             raise DecisionAPIError("no Gemini API key configured")
         if not attempted:
@@ -466,13 +468,20 @@ class GeminiDecisionDispatcher:
             return self._bge
 
     @staticmethod
+    def _probability(value: Any) -> float:
+        probability = float(value)
+        if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+            raise DecisionAPIError("invalid probability")
+        return probability
+
+    @staticmethod
     def _as_probability_dict(raw: Any, labels: Any = None) -> Dict[str, float]:
         if isinstance(raw, dict):
-            return {str(k): float(v) for k, v in raw.items()}
+            return {str(k): GeminiDecisionDispatcher._probability(v) for k, v in raw.items()}
         probs: Dict[str, float] = {}
-        for index, value in enumerate(raw or []):
+        for index, value in enumerate([] if raw is None else raw):
             label = getattr(labels, "get", lambda _i, _d=None: None)(index)
-            probs[str(label if label is not None else index)] = float(value)
+            probs[str(label if label is not None else index)] = GeminiDecisionDispatcher._probability(value)
         return probs
 
     def _fallback_predict(self, text: str) -> Tuple[str, float, Dict[str, float]]:
@@ -508,9 +517,9 @@ class GeminiDecisionDispatcher:
             if answer.get("type") != "choice":
                 raise DecisionAPIError(f"unexpected answer type: {answer.get('type')!r}")
             intent = str(answer["choice"])
-            if not intent:
-                raise DecisionAPIError("empty choice")
-            confidence = float(answer.get("confidence", 0.0))
+            if intent not in self.criteria:
+                raise DecisionAPIError("choice is not a configured intent")
+            confidence = self._probability(answer.get("confidence", 0.0))
             probs = self._as_probability_dict(answer.get("probabilities") or {})
         except Exception as exc:
             logger.warning("Decision 1 prediction failed (%s); using BGE-small fallback", exc)
@@ -643,14 +652,16 @@ class GeminiDecisionDispatcher:
             answer = answers.get(name) or {}
             if not isinstance(answer, dict):
                 raise DecisionAPIError(f"invalid {name} answer")
-            return float(answer.get("noul", answer.get("confidence", 0.0)))
+            return self._probability(answer.get("noul", answer.get("confidence", 0.0)))
 
         choice = answers.get("candidate_action") or {}
         if not isinstance(choice, dict) or not choice.get("choice"):
             raise DecisionAPIError("Decision 1 returned no candidate_action choice")
+        if str(choice["choice"]) not in {str(key) for key in candidates}:
+            raise DecisionAPIError("Decision 1 choice is not a candidate action")
         return {
             "candidate_action": str(choice["choice"]),
-            "confidence": float(choice.get("confidence", 0.0)),
+            "confidence": self._probability(choice.get("confidence", 0.0)),
             "probabilities": self._as_probability_dict(choice.get("probabilities") or {}),
             "has_blocking_modal": _noul("has_blocking_modal"),
             "goal_complete": _noul("goal_complete"),

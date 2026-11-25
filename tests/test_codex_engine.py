@@ -209,9 +209,14 @@ class TestCodexEngineBehavior(unittest.IsolatedAsyncioTestCase):
         self.assertIn("NEVER read `codemap.md`", codex_eng.preamble)
         self.assertNotIn("invoke_subagent", codex_eng.preamble)
 
+        from acp_antigravity_engine import ACPAntigravityEngine
         agy_eng = gideon_mod._make_engine("agy", bus, tts)
-        self.assertIsInstance(agy_eng, gideon_mod.AntigravityEngine)
+        self.assertIsInstance(agy_eng, ACPAntigravityEngine)
         self.assertEqual(agy_eng.name, "agy")
+
+        agy_headless = gideon_mod._make_engine("agy-headless", bus, tts)
+        self.assertIsInstance(agy_headless, gideon_mod.AntigravityEngine)
+        self.assertEqual(agy_headless.name, "agy-headless")
 
     async def test_streaming_speech_tool_status_and_reasoning_isolation(self):
         bus = _Bus()

@@ -5,7 +5,7 @@ Built for Omarchy / Hyprland Linux.
 Features:
 - Unified HTTP Visualizer Server on port 8790 (serves Circuit Board & all faces).
 - In-Browser Hold-to-Talk via Spacebar (/api/talk/start & /api/talk/stop).
-- Persistent Codex `app-server` (`gpt-6-luna`) default engine with Antigravity (`agy`) fallback.
+- Persistent Codex (`codex` with GPT-6 Luna @ xhigh) default engine with Antigravity (`agy` ACP) fallback.
 - Parakeet TDT 0.6B v3 INT8 ONNX Speech-to-Text with Silero VAD (Faster-Whisper fallback).
 - Fish Audio Neural Cloud TTS with PipeWire (`pw-play`) playback.
 - Dynamic waveform & state IPC bridge for `ai-visualizer`.
@@ -64,8 +64,8 @@ HOT_MIC_WINDOW_S = 45.0
 # speech keeps arriving, so this is a silence-gap budget, not a hard clip.
 MAX_UTTERANCE_S = 45.0
 
-# Tunable wake-word & Whisper STT hallucination thresholds (override via env vars)
-WAKE_THRESHOLD = float(os.environ.get("GIDEON_WAKE_THRESHOLD", "0.45"))
+# Tunable wake-word (Silero VAD + Faster-Whisper) & Whisper STT hallucination thresholds (override via env vars)
+WAKE_THRESHOLD = float(os.environ.get("GIDEON_WAKE_THRESHOLD", "0.35"))
 STT_NO_SPEECH_PROB_MAX = float(os.environ.get("GIDEON_STT_NO_SPEECH_PROB_MAX", "0.60"))
 STT_AVG_LOGPROB_MIN = float(os.environ.get("GIDEON_STT_AVG_LOGPROB_MIN", "-1.0"))
 STT_COMPRESSION_RATIO_MAX = float(os.environ.get("GIDEON_STT_COMPRESSION_RATIO_MAX", "2.4"))
@@ -133,14 +133,7 @@ def _load_gideon_env() -> None:
     ensure_hyprland_env()
 
 
-_load_gideon_env()
 FISH_API_KEY = os.environ.get("FISH_API_KEY", "")
-if not FISH_API_KEY:
-    logger.error(
-        "FISH_API_KEY is not set: every Fish Audio synthesis will fail and Gideon "
-        "will answer in text without speaking. Add FISH_API_KEY=... to "
-        "~/.config/gideon/gideon.env and restart the daemon."
-    )
 FISH_REF_ID = "98655a12fa944e26b274c535e5e03842"
 FISH_MODEL = "s2.1-pro-free"
 HTTP_PORT = 8790
@@ -149,6 +142,22 @@ HTTP_PORT = 8790
 # surfaces. Set GIDEON_ENABLE_HUD=1 to bring the :8790 server back.
 HUD_ENABLED = os.environ.get("GIDEON_ENABLE_HUD", "0").strip().lower() in ("1", "true", "yes", "on")
 UI_SOCK_PATH = "/tmp/gideon-ui.sock"
+
+
+def _configure_runtime() -> None:
+    """Load private daemon settings at startup, never as an import side effect."""
+    global FISH_API_KEY, FISH_WS_URL, HUD_ENABLED, WAKE_THRESHOLD
+    global STT_NO_SPEECH_PROB_MAX, STT_AVG_LOGPROB_MIN, STT_COMPRESSION_RATIO_MAX
+    _load_gideon_env()
+    FISH_API_KEY = os.environ.get("FISH_API_KEY", "")
+    FISH_WS_URL = os.environ.get("GIDEON_FISH_WS_URL", "wss://api.fish.audio/v1/tts/live")
+    HUD_ENABLED = os.environ.get("GIDEON_ENABLE_HUD", "0").strip().lower() in ("1", "true", "yes", "on")
+    WAKE_THRESHOLD = float(os.environ.get("GIDEON_WAKE_THRESHOLD", "0.35"))
+    STT_NO_SPEECH_PROB_MAX = float(os.environ.get("GIDEON_STT_NO_SPEECH_PROB_MAX", "0.60"))
+    STT_AVG_LOGPROB_MIN = float(os.environ.get("GIDEON_STT_AVG_LOGPROB_MIN", "-1.0"))
+    STT_COMPRESSION_RATIO_MAX = float(os.environ.get("GIDEON_STT_COMPRESSION_RATIO_MAX", "2.4"))
+    if not FISH_API_KEY:
+        logger.error("FISH_API_KEY is not set; Fish Audio synthesis is unavailable.")
 
 # Sentence boundary regex with abbreviation lookbehind protections
 _SENTENCE_END = re.compile(
@@ -559,10 +568,11 @@ def _extract_audio_frames(
 class _FishStream:
     """Pipelined Fish Live WebSocket PCM stream for a single queued sentence."""
     text: str
-    chunk_queue: asyncio.Queue = field(default_factory=asyncio.Queue)
+    chunk_queue: asyncio.Queue = field(default_factory=lambda: asyncio.Queue(maxsize=32))
     task: Optional[asyncio.Task] = None
     fallback_wav: Optional[bytes] = None
     error: Optional[str] = None
+    received_audio: bool = False
 
 
 class TTSPlayer:
@@ -578,6 +588,9 @@ class TTSPlayer:
         self._http_client: Optional[Any] = None
         self._warm_ws: Optional[Any] = None
         self._warm_ws_ts: float = 0.0
+        self._synth_slots = asyncio.Semaphore(2)
+        self._prewarm_task: Optional[asyncio.Task] = None
+        self._closed = False
 
     def _active_tool_label(self) -> Optional[str]:
         """Returns the active running tool label if a tool/subagent is currently executing."""
@@ -593,7 +606,13 @@ class TTSPlayer:
         return self._http_client
 
     async def close(self):
+        self._closed = True
         await self.interrupt()
+        worker = self._worker_task
+        self._worker_task = None
+        if worker is not None and worker is not asyncio.current_task():
+            worker.cancel()
+            await asyncio.gather(worker, return_exceptions=True)
         client = self._http_client
         self._http_client = None
         if client is not None:
@@ -626,6 +645,8 @@ class TTSPlayer:
         self.queue_sentence(text)
 
     def start_worker(self):
+        if self._closed:
+            return
         if not self._worker_task or self._worker_task.done():
             self._worker_task = asyncio.create_task(self._playback_loop())
 
@@ -767,6 +788,7 @@ class TTSPlayer:
                     odd_byte = b""
                 if combined:
                     received_audio = True
+                    stream.received_audio = True
                     await stream.chunk_queue.put(combined)
             elif event == "finish":
                 finished = True
@@ -814,7 +836,7 @@ class TTSPlayer:
             except Exception:
                 # A stale warm socket may fail before any audio: retry once on
                 # a fresh connection. Never retry mid-audio (duplicate speech).
-                if not reused or received_audio:
+                if not reused or stream.received_audio:
                     raise
                 logger.debug("Warm Fish WS connection stale; reconnecting fresh.")
                 await self._close_ws_quiet(ws)
@@ -851,33 +873,55 @@ class TTSPlayer:
                     await self._close_ws_quiet(ws)
             except asyncio.CancelledError:
                 pass
-            if not was_cancelled and not received_audio and stream.task is not None and not stream.task.cancelled():
+            if not was_cancelled and not stream.received_audio and stream.task is not None and not stream.task.cancelled():
                 try:
                     stream.fallback_wav = await self.synthesize(stream.text)
                 except asyncio.CancelledError:
                     pass
                 except Exception as e:
                     logger.error(f"Fish HTTP fallback error: {e}")
-            stream.chunk_queue.put_nowait(None)
+            if was_cancelled:
+                self._discard_stream_audio(stream)
+            else:
+                await stream.chunk_queue.put(None)
+
+    @staticmethod
+    def _discard_stream_audio(stream: _FishStream) -> None:
+        while not stream.chunk_queue.empty():
+            stream.chunk_queue.get_nowait()
+        stream.chunk_queue.put_nowait(None)
+
+    def _forget_synth_task(self, task: asyncio.Task) -> None:
+        self._current_synth_tasks.discard(task)
+        if not task.cancelled():
+            task.exception()
+
+    async def _queued_synthesis(self, text: str):
+        async with self._synth_slots:
+            return await self.synthesize(text)
+
+    async def _queued_stream(self, stream: _FishStream):
+        async with self._synth_slots:
+            await self._run_ws_stream(stream)
 
     def queue_sentence(self, text: str):
         """Immediately starts background synthesis task and enqueues it for pipelined playback."""
         text = text.strip()
-        if not text:
+        if not text or self._closed:
             return
 
         if self._ws_enabled():
             stream = _FishStream(text=text)
-            synth_task = asyncio.create_task(self._run_ws_stream(stream))
+            synth_task = asyncio.create_task(self._queued_stream(stream))
             stream.task = synth_task
             self._current_synth_tasks.add(synth_task)
-            synth_task.add_done_callback(lambda t: self._current_synth_tasks.discard(t))
+            synth_task.add_done_callback(self._forget_synth_task)
             self._queue.put_nowait((text, stream))
             return
 
-        synth_task = asyncio.create_task(self.synthesize(text))
+        synth_task = asyncio.create_task(self._queued_synthesis(text))
         self._current_synth_tasks.add(synth_task)
-        synth_task.add_done_callback(lambda t: self._current_synth_tasks.discard(t))
+        synth_task.add_done_callback(self._forget_synth_task)
         self._queue.put_nowait((text, synth_task))
 
     def _finish_playback_state(self) -> None:
@@ -914,7 +958,8 @@ class TTSPlayer:
                     else:
                         self._finish_playback_state()
             except asyncio.CancelledError:
-                pass
+                if asyncio.current_task().cancelling():
+                    raise
             except Exception as e:
                 logger.error(f"Error in playback worker: {e}")
             finally:
@@ -922,39 +967,68 @@ class TTSPlayer:
 
     async def interrupt(self):
         """Kills active audio playback immediately and cancels queued speech."""
+        proc = self._current_proc
+        if proc is not None:
+            self._interrupted_procs.add(proc)
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                pass
+            self._current_proc = None
+        self._is_speaking = False
         warm = self._warm_ws
         self._warm_ws = None
-        if warm is not None:
-            await self._close_ws_quiet(warm)
+        tasks = set(self._current_synth_tasks)
+        if self._prewarm_task is not None:
+            tasks.add(self._prewarm_task)
         while not self._queue.empty():
             try:
                 _, item = self._queue.get_nowait()
                 task = item.task if isinstance(item, _FishStream) else item
                 if task is not None:
-                    task.cancel()
+                    tasks.add(task)
                 if isinstance(item, _FishStream):
-                    item.chunk_queue.put_nowait(None)
+                    self._discard_stream_audio(item)
                 self._queue.task_done()
             except Exception:
                 pass
 
-        for task in list(self._current_synth_tasks):
-            task.cancel()
+        tasks.discard(asyncio.current_task())
+        for task in tasks:
+            if not task.done():
+                task.cancel()
         self._current_synth_tasks.clear()
-
-        if self._current_proc:
-            self._interrupted_procs.add(self._current_proc)
-            try:
-                self._current_proc.terminate()
-            except Exception:
-                pass
-            self._current_proc = None
-
-        self._is_speaking = False
         self.bus.clear_waveform()
         self.bus.broadcast_rms(0.0)
         self.bus.clear_transcript()
         self.bus.set_state("idle")
+        if warm is not None:
+            await self._close_ws_quiet(warm)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        if proc is not None:
+            await self._reap_playback_process(proc)
+
+    async def _reap_playback_process(self, proc) -> None:
+        def _reap():
+            try:
+                if proc.returncode is None and proc not in self._interrupted_procs:
+                    proc.terminate()
+                try:
+                    proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=1.0)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            finally:
+                for pipe in (proc.stdin, proc.stderr):
+                    if pipe is not None:
+                        try:
+                            pipe.close()
+                        except OSError:
+                            pass
+        await asyncio.to_thread(_reap)
 
     async def wait_until_done(self):
         """Waits until all queued speech has completed playing."""
@@ -975,24 +1049,8 @@ class TTSPlayer:
         if stream.text:
             self.bus.broadcast_transcript("gideon", stream.text)
 
-        proc = subprocess.Popen(
-            [
-                "pw-play",
-                "--raw",
-                "--media-role", "Communication",
-                "-P", "application.name=GIDEON",
-                "-P", 'media.name="Gideon Speech"',
-                "--rate", "44100",
-                "--channels", "1",
-                "--format", "s16",
-                "-",
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-        )
-        self._current_proc = proc
-
+        proc = None
+        anim_task = None
         hop_s = 0.04
         frame_bytes = 3528  # 40ms @ 44.1 kHz 16-bit mono
         frames: list[tuple[list[float], float]] = []
@@ -1025,13 +1083,13 @@ class TTSPlayer:
                     proc.stdin.close()
                 except Exception:
                     pass
+            proc.wait(timeout=2.0)
             stderr_bytes = b""
             if proc.stderr is not None:
                 try:
                     stderr_bytes = proc.stderr.read()
                 except Exception:
                     pass
-            proc.wait()
             return stderr_bytes
 
         async def _animate():
@@ -1048,17 +1106,28 @@ class TTSPlayer:
             self.bus.clear_waveform()
             self.bus.broadcast_rms(0.0)
 
-        anim_task = asyncio.create_task(_animate())
         try:
+            proc = subprocess.Popen(
+                [
+                    "pw-play", "--raw", "--media-role", "Communication",
+                    "-P", "application.name=GIDEON", "-P", 'media.name="Gideon Speech"',
+                    "--rate", "44100", "--channels", "1", "--format", "s16", "-",
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+            self._current_proc = proc
+            anim_task = asyncio.create_task(_animate())
             _append_frames(first_chunk)
-            await asyncio.to_thread(_write_stdin, first_chunk)
+            await asyncio.wait_for(asyncio.to_thread(_write_stdin, first_chunk), timeout=5.0)
             while self._is_speaking:
-                chunk = await stream.chunk_queue.get()
+                chunk = await asyncio.wait_for(stream.chunk_queue.get(), timeout=30.0)
                 if chunk is None:
                     eof_reached = True
                     break
                 _append_frames(chunk)
-                await asyncio.to_thread(_write_stdin, chunk)
+                await asyncio.wait_for(asyncio.to_thread(_write_stdin, chunk), timeout=5.0)
             _append_frames(b"", flush_all=True)
             stderr = await asyncio.to_thread(_close_stdin_and_wait)
             if proc.returncode != 0 and proc not in self._interrupted_procs:
@@ -1067,14 +1136,14 @@ class TTSPlayer:
             logger.error(f"pw-play stream error: {e}")
         finally:
             eof_reached = True
-            self._interrupted_procs.discard(proc)
             self._is_speaking = False
             self._current_proc = None
-            anim_task.cancel()
-            try:
-                await anim_task
-            except asyncio.CancelledError:
-                pass
+            if anim_task is not None:
+                anim_task.cancel()
+                await asyncio.gather(anim_task, return_exceptions=True)
+            if proc is not None:
+                await self._reap_playback_process(proc)
+                self._interrupted_procs.discard(proc)
             self._finish_playback_state()
 
     async def play_wav(self, wav_bytes: bytes, text: str = ""):
@@ -1084,16 +1153,8 @@ class TTSPlayer:
         if text:
             self.bus.broadcast_transcript("gideon", text)
 
-        proc = subprocess.Popen(
-            ["pw-play", "--media-role", "Communication", "-P", "application.name=GIDEON", "-P", 'media.name="Gideon Speech"', "-"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE
-        )
-        self._current_proc = proc
-
-        frames, hop_s = _extract_audio_frames(wav_bytes, is_raw_pcm=False, with_bands=self.bus.waveform_enabled)
-
+        proc = None
+        anim_task = None
         # Animate visualizer waveform and orb RMS synchronized to real audio frames
         async def _animate():
             t0 = time.monotonic()
@@ -1107,22 +1168,30 @@ class TTSPlayer:
             self.bus.clear_waveform()
             self.bus.broadcast_rms(0.0)
 
-        anim_task = asyncio.create_task(_animate())
         try:
-            _, stderr = await asyncio.to_thread(proc.communicate, wav_bytes)
+            proc = subprocess.Popen(
+                ["pw-play", "--media-role", "Communication", "-P", "application.name=GIDEON", "-P", 'media.name="Gideon Speech"', "-"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+            self._current_proc = proc
+            frames, hop_s = _extract_audio_frames(wav_bytes, is_raw_pcm=False, with_bands=self.bus.waveform_enabled)
+            anim_task = asyncio.create_task(_animate())
+            _, stderr = await asyncio.to_thread(proc.communicate, wav_bytes, timeout=180.0)
             if proc.returncode != 0 and proc not in self._interrupted_procs:
                 logger.error(f"pw-play failed with code {proc.returncode}: {stderr.decode(errors='ignore') if stderr else ''}")
         except Exception as e:
             logger.error(f"pw-play error: {e}")
         finally:
-            self._interrupted_procs.discard(proc)
             self._is_speaking = False
             self._current_proc = None
-            anim_task.cancel()
-            try:
-                await anim_task
-            except asyncio.CancelledError:
-                pass
+            if anim_task is not None:
+                anim_task.cancel()
+                await asyncio.gather(anim_task, return_exceptions=True)
+            if proc is not None:
+                await self._reap_playback_process(proc)
+                self._interrupted_procs.discard(proc)
             self._finish_playback_state()
 
 
@@ -1202,10 +1271,14 @@ GIDEON_VOICE_PREAMBLE = (
     "For non-local, unique, or vague vibes use `~/.local/bin/music online \"<artist - track>\" --json` "
     "(translate vibes yourself into 1 to 3 real track args, or `--count 3`). "
     "The CLI ensures `mpv`, unpauses, and verifies real playback before returning `0`.\n"
-    "7. HONEST SUBAGENT & TOOL BLOCKING: In this Antigravity voice session, calling `invoke_subagent` "
-    "or running long tools blocks the session until the task finishes; you cannot keep chatting concurrently "
-    "while a subagent runs. Only spawn a subagent when heavy isolated research or multi-file work truly needs one, "
-    "and tell the user beforehand if it will take time. Handle direct questions and quick edits yourself so the mic returns quickly.\n\n"
+    "7. HONEST SUBAGENT & LONG-HORIZON DISCIPLINE: You are Gideon, the user's real-time voice companion. "
+    "Before starting any multi-second tool, long-horizon task, or calling `invoke_subagent`, "
+    "you MUST speak immediately up-front in one concise spoken sentence to inform the user what you are doing (zero dead air). "
+    "Calling `invoke_subagent` or running long tools blocks the session until the task finishes; you cannot keep chatting concurrently "
+    "while a subagent runs. Only spawn a subagent when heavy isolated research or multi-file work truly needs one. "
+    "When delegating to a subagent or running a multi-step or long-horizon task, inform the user when it starts "
+    "and give concise spoken progress and completion updates upon return. "
+    "Handle direct questions and quick edits yourself so the mic returns quickly.\n\n"
     "8. OBSERVED-TAB-ONLY BROWSING: Use only observed tab IDs returned by browser tools in this session. "
     "Open or navigate to the exact URL supplied or verified; NEVER invent tab handles or guess IDs. "
     "After navigation, verify the loaded URL and page content before claiming success. If a tab is missing or stale, "
@@ -1226,6 +1299,8 @@ CODEX_VOICE_PREAMBLE = (
     "[Directive: Voice Operating Mode & Behavioral Protocol]\n"
     "You are GIDEON: an autonomous desktop companion and executive on Omarchy Linux. "
     "You speak aloud directly to the user via neural text-to-speech.\n\n"
+    "Codex is the reasoning engine for this session; the user is speaking with GIDEON. "
+    "Keep GIDEON as your user-facing identity, and mention the Codex backend only when asked or when needed for a truthful technical explanation.\n\n"
     "=== HARD NON-NEGOTIABLES (STRICT ZERO TOLERANCE) ===\n"
     "1. PURE SPOKEN PROSE ONLY: Never output markdown headers (###), bullet points (* or -), "
     "numbered lists (1. 2.), code fences, asterisks, markdown URLs, or pointer arrows. "
@@ -1267,10 +1342,11 @@ CODEX_VOICE_PREAMBLE = (
     "- Language & Flow: Adult, natural conversational cadence. Real profanity (fuck, shit, damn, ass, bullshit, hell) "
     "is welcome when something is genuinely broken, ridiculous, or exciting—never forced into every sentence. "
     'Occasional natural hesitations ("uhm", "well", "look") add realistic flow.\n'
-    "- Fish Audio S2.1 Expression Tags: You MAY sparingly use square-bracket tags like [chuckle], [snicker], "
-    "[teasing], [sarcastic], [smug], [groan], [excited], [deadpan], [scoff], or [pause] when delivery calls for it. "
-    "NEVER use whisper tags. NEVER force tags into routine or simple answers—at most one or two when earned. "
-    "Most turns need none."
+    "- Fish Audio S2.1 Expression Tags: Use inline square-bracket tags as audible performance cues, not decoration. "
+    "When a turn has humor, empathy, surprise, or another clear emotion, prefer two distinct well-matched tags so the delivery has audible shape. "
+    "Use [laughs], [chuckle], or [snicker] for genuine laughter; use [teasing], [sarcastic], [smug], [groan], [excited], [deadpan], [scoff], or [pause] when they fit. "
+    "Place tags before the phrases they shape. Let two cues build or shift within one sentence when that sounds natural, such as [pause] followed by [groan] or [chuckle] followed by [excited]. "
+    "Keep short neutral answers untagged, avoid redundant cues, and use no more than two tags per response. NEVER use whisper tags."
 )
 
 CONVERSATION_DIRECTIVE = GIDEON_VOICE_PREAMBLE
@@ -1407,9 +1483,12 @@ async def _read_proc_stderr(proc) -> str:
         return ""
 
 
+WATCHDOG_INTERVAL_S = 45.0
+
+
 class AntigravityEngine:
     """Manages the headless `agy` bidirectional NDJSON subprocess."""
-    name = "agy"
+    name = "agy-headless"
 
     def __init__(self, bus: SignalBus, tts: TTSPlayer):
         self.bus = bus
@@ -1874,7 +1953,7 @@ class AntigravityEngine:
         """Speaks a calm check-in periodically during long turns, with collision protection."""
         try:
             while self.is_turn_active:
-                await asyncio.sleep(45.0)
+                await asyncio.sleep(WATCHDOG_INTERVAL_S)
 
                 # Strict Status Gate: exit if the turn ended or the tool is no longer actively running
                 if not self.is_turn_active or not self.current_tool or self.current_tool.get("status") != "running":
@@ -2327,14 +2406,17 @@ class WakeWordListener:
         # _post_talk) detect that a dismissal landed during their sleep.
         self._hot_mic_epoch = 0
         self._listener_instance = None
+        self._hot_mic_lock = threading.RLock()
+        self._lifecycle_lock = threading.Lock()
 
     def is_hot_mic_active(self) -> bool:
-        return self._hot_mic_armed and (time.time() < self._hot_mic_until)
+        with self._hot_mic_lock:
+            return self.enabled and self._hot_mic_armed and (time.monotonic() < self._hot_mic_until)
 
     def restore_state_after_drop(self) -> None:
         """Quietly return the orb to hotmic (if original window is still running) or idle without re-arming/extending."""
         if self.is_hot_mic_active():
-            remaining = max(0.1, self._hot_mic_until - time.time())
+            remaining = max(0.1, self._hot_mic_until - time.monotonic())
             if self._listener_instance:
                 self._listener_instance.hot_mic_timeout = remaining
             self.bus.set_state("hotmic")
@@ -2344,7 +2426,8 @@ class WakeWordListener:
 
     def set_enabled(self, enabled: bool) -> None:
         """Set the hands-free wake gate and stop an active capture when disabling it."""
-        self.enabled = bool(enabled)
+        with self._hot_mic_lock:
+            self.enabled = bool(enabled)
         self.bus.wake_enabled = self.enabled
         if not self.enabled:
             self.disarm_hot_mic()
@@ -2355,64 +2438,66 @@ class WakeWordListener:
             logger.info("🎙️ Wake listener enabled.")
 
     def arm_hot_mic(self, timeout_s: float = HOT_MIC_WINDOW_S):
-        if not self.enabled:
-            logger.debug("Ignoring hot-mic arm while the wake listener is disabled.")
-            return
-        self.hot_mic_timeout = timeout_s
-        self._hot_mic_until = time.time() + timeout_s
-        self._hot_mic_armed = True
-        self._hot_mic_epoch += 1
-        if self._listener_instance:
-            self._listener_instance.hot_mic_timeout = timeout_s
-        self.bus.set_state("hotmic")
-        logger.info(f"🎙️ [Talk Buffer Zone] Hot-mic armed for {timeout_s}s — follow-up without wake word.")
-
-        if self._hot_mic_timer:
-            try:
+        with self._hot_mic_lock:
+            if not self.enabled:
+                return
+            timeout_s = max(0.0, float(timeout_s))
+            self.hot_mic_timeout = timeout_s
+            self._hot_mic_until = time.monotonic() + timeout_s
+            self._hot_mic_armed = True
+            self._hot_mic_epoch += 1
+            epoch = self._hot_mic_epoch
+            if self._listener_instance:
+                self._listener_instance.hot_mic_timeout = timeout_s
+            self.bus.set_state("hotmic")
+            if self._hot_mic_timer:
                 self._hot_mic_timer.cancel()
-            except Exception:
-                pass
-            self._hot_mic_timer = None
 
-        def _timeout_disarm():
-            if self._hot_mic_armed and time.time() >= self._hot_mic_until:
-                if self._listener_instance and getattr(self._listener_instance, "is_recording_command", False):
-                    # User is actively speaking; let trailing silence complete capture
-                    return
-                logger.info("🎙️ [Talk Buffer Zone] Hot-mic window timed out. Reverting to idle.")
-                self.disarm_hot_mic()
+            def _timeout_disarm():
+                with self._hot_mic_lock:
+                    if epoch != self._hot_mic_epoch or not self._hot_mic_armed:
+                        return
+                    remaining = self._hot_mic_until - time.monotonic()
+                    recording = self._listener_instance and getattr(self._listener_instance, "is_recording_command", False)
+                    if remaining > 0 or recording:
+                        self._hot_mic_timer = threading.Timer(max(0.25, remaining), _timeout_disarm)
+                        self._hot_mic_timer.daemon = True
+                        self._hot_mic_timer.start()
+                        return
+                    self.disarm_hot_mic()
 
-        self._hot_mic_timer = threading.Timer(timeout_s + 0.15, _timeout_disarm)
-        self._hot_mic_timer.daemon = True
-        self._hot_mic_timer.start()
+            self._hot_mic_timer = threading.Timer(timeout_s + 0.15, _timeout_disarm)
+            self._hot_mic_timer.daemon = True
+            self._hot_mic_timer.start()
 
     def disarm_hot_mic(self):
-        self._hot_mic_epoch += 1
-        self._hot_mic_armed = False
-        self._hot_mic_until = 0.0
-        if self._hot_mic_timer:
-            try:
+        with self._hot_mic_lock:
+            self._hot_mic_epoch += 1
+            self._hot_mic_armed = False
+            self._hot_mic_until = 0.0
+            if self._hot_mic_timer:
                 self._hot_mic_timer.cancel()
-            except Exception:
-                pass
-            self._hot_mic_timer = None
-        if self.bus.current_state in ("hotmic", "listening"):
-            self.bus.current_level = 0.0
-            self.bus.clear_waveform()
-            self.bus.set_state("idle")
+                self._hot_mic_timer = None
+            if self.bus.current_state in ("hotmic", "listening"):
+                self.bus.current_level = 0.0
+                self.bus.clear_waveform()
+                self.bus.set_state("idle")
 
     def start(self):
-        if self._running:
-            return
-        self._running = True
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
-        self._thread.start()
+        with self._lifecycle_lock:
+            if self._running or (self._thread and self._thread.is_alive()):
+                return
+            self._running = True
+            self._thread = threading.Thread(target=self._run_loop, daemon=True)
+            self._thread.start()
 
     def stop(self):
         self._running = False
         self.disarm_hot_mic()
         if self._listener_instance:
             self._listener_instance.stop()
+        if self._thread and self._thread is not threading.current_thread():
+            self._thread.join(timeout=1.0)
 
     def _handle_barge_in(self) -> None:
         """Stop playback AND the in-flight engine turn on acoustic barge-in.
@@ -2428,9 +2513,17 @@ class WakeWordListener:
         engine = getattr(self.bus, "engine", None)
         interrupt = getattr(engine, "interrupt", None)
         if callable(interrupt):
-            asyncio.run_coroutine_threadsafe(interrupt(), self.main_loop)
+            future = asyncio.run_coroutine_threadsafe(interrupt(), self.main_loop)
         else:
-            asyncio.run_coroutine_threadsafe(self.tts.interrupt(), self.main_loop)
+            future = asyncio.run_coroutine_threadsafe(self.tts.interrupt(), self.main_loop)
+
+        def completed(result):
+            try:
+                result.result()
+            except Exception as exc:
+                logger.warning("Acoustic interruption failed: %s", exc)
+
+        future.add_done_callback(completed)
 
     def _run_loop(self):
         sys.path.insert(0, str(HERE))
@@ -2452,14 +2545,14 @@ class WakeWordListener:
                     self.bus.update_waveform(bars + [0.0] * 32)
 
         def on_wake():
-            logger.info("⚡ Wake word detected ('Hey Jarvis')!")
+            logger.info("⚡ Wake word detected ('Hey Gideon')!")
             self.disarm_hot_mic()
             self.bus.set_state("listening")
 
         listener = AudioListener(
-            wake_word="hey jarvis",
+            wake_word="hey gideon",
             wake_threshold=self.wake_threshold,
-            mic_gain=1.8,
+            mic_gain=1.6,
             hot_mic_timeout=self.hot_mic_timeout,
             on_rms_update=on_rms,
             on_wake_detected=on_wake,
@@ -2467,7 +2560,10 @@ class WakeWordListener:
         )
         self._listener_instance = listener
         listener.load_wake_model()
-        logger.info("🎙️ Background Wake Word Listener ACTIVE ('Hey Jarvis').")
+        if not self._running:
+            listener.close()
+            return
+        logger.info("🎙️ Background Wake Word Listener ACTIVE ('Hey Gideon' via Silero VAD + Faster-Whisper).")
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -2483,7 +2579,7 @@ class WakeWordListener:
                 if self._hot_mic_armed and not is_hot_mic:
                     self.disarm_hot_mic()
                 elif is_hot_mic:
-                    listener.hot_mic_timeout = max(0.1, self._hot_mic_until - time.time())
+                    listener.hot_mic_timeout = max(0.1, self._hot_mic_until - time.monotonic())
 
                 try:
                     audio_buffer = await listener.listen_for_command(
@@ -2493,10 +2589,10 @@ class WakeWordListener:
                         max_duration_s=MAX_UTTERANCE_S,
                         hot_mic_checker=self.is_hot_mic_active,
                         is_speaking_checker=lambda: self.tts._is_speaking,
-                        enabled_checker=lambda: self.enabled,
+                        enabled_checker=lambda: self.enabled and self._running,
                     )
                     consecutive_errors = 0
-                    if audio_buffer is not None and self.enabled and not self.tts._is_speaking:
+                    if audio_buffer is not None and self.enabled and self._running and not self.tts._is_speaking:
                         # Speech detected and recorded: flip to thinking while preserving any remaining
                         # hot-mic window until STT verifies the utterance is not silence/hallucination.
                         self.bus.set_state("thinking", "Transcribing speech…")
@@ -2519,7 +2615,12 @@ class WakeWordListener:
         except Exception as e:
             logger.error(f"Wake word listener loop error: {e}")
         finally:
+            listener.close()
+            self._running = False
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.run_until_complete(loop.shutdown_default_executor())
             loop.close()
+            asyncio.set_event_loop(None)
 
 
 class StdinReader:
@@ -2866,18 +2967,33 @@ def run_visualizer_server(bus: SignalBus, recorder: AudioStreamRecorder, get_lis
 
 
 def _make_engine(name: str, bus: SignalBus, tts: TTSPlayer):
-    """Factory: 'codex' is Codex app-server (default); 'agy' is Antigravity fallback."""
-    if name not in ("codex", "agy"):
+    """Factory: 'codex' is Codex app-server (default); 'agy' is Antigravity ACP; 'agy-headless' is legacy NDJSON fallback."""
+    if name not in ("codex", "agy", "agy-headless"):
         logger.warning("Unknown engine %r; falling back to codex.", name)
         name = "codex"
     if name == "codex":
         from codex_engine import CodexEngine, DEFAULT_CODEX_EFFORT
+        effort = bus.current_effort if getattr(bus, "explicit_effort", False) else DEFAULT_CODEX_EFFORT
         return CodexEngine(
             bus,
             tts,
             preamble=CODEX_VOICE_PREAMBLE,
             cwd=str(HERE),
-            effort=DEFAULT_CODEX_EFFORT,
+            effort=effort,
+            clean_text_fn=clean_text_for_tts,
+            sentence_end_re=_SENTENCE_END,
+            directive_classifier=classify_turn_directive,
+            hot_mic_window_s=HOT_MIC_WINDOW_S,
+        )
+    if name == "agy":
+        from acp_antigravity_engine import ACPAntigravityEngine, DEFAULT_ACP_EFFORT
+        effort = bus.current_effort if getattr(bus, "explicit_effort", False) else DEFAULT_ACP_EFFORT
+        return ACPAntigravityEngine(
+            bus,
+            tts,
+            preamble=GIDEON_VOICE_PREAMBLE,
+            cwd=str(HERE),
+            effort=effort,
             clean_text_fn=clean_text_for_tts,
             sentence_end_re=_SENTENCE_END,
             directive_classifier=classify_turn_directive,
@@ -2901,12 +3017,19 @@ async def _shutdown_engine(engine) -> None:
 
 
 async def main():
+    _configure_runtime()
     parser = argparse.ArgumentParser(description="Gideon voice console")
     parser.add_argument(
         "--engine",
-        choices=["codex", "agy"],
+        choices=["codex", "agy", "agy-headless"],
         default=os.environ.get("GIDEON_ENGINE", "codex"),
-        help="Brain backend: codex = Codex app-server (default); agy = Antigravity fallback",
+        help="Brain backend: codex = Codex app-server (default); agy = Antigravity ACP; agy-headless = legacy NDJSON",
+    )
+    parser.add_argument(
+        "--effort",
+        choices=["low", "medium", "high", "xhigh", "max"],
+        default=os.environ.get("GIDEON_EFFORT", None),
+        help="Reasoning effort level (defaults to engine preference, e.g. xhigh for codex, medium for agy)",
     )
     parser.add_argument(
         "--debug-bundle",
@@ -2925,6 +3048,9 @@ async def main():
 
     loop = asyncio.get_running_loop()
     bus = SignalBus(SIGNALS_DIR)
+    if args.effort:
+        bus.current_effort = args.effort
+        bus.explicit_effort = True
     # No HUD, no waveform consumers: skip the spectral math in all producers.
     bus.waveform_enabled = HUD_ENABLED
     await bus.start_ui_server()
@@ -2943,7 +3069,7 @@ async def main():
 
     async def switch_engine(target: str) -> bool:
         nonlocal engine_name
-        if target not in ("codex", "agy"):
+        if target not in ("codex", "agy", "agy-headless"):
             logger.warning("Unknown engine target: %r", target)
             return False
         if target == engine_name and getattr(engine_holder[0], "_engine_alive", lambda: True)():
@@ -3080,18 +3206,42 @@ async def main():
     try:
         await engine.start()
     except Exception as exc:
-        if engine_name != "agy":
-            logger.error("Engine %s failed to start (%s); falling back to Antigravity (agy).", engine_name, exc)
+        if engine_name == "codex":
+            logger.error("Engine codex failed to start (%s); falling back to Antigravity (agy).", exc)
             await _shutdown_engine(engine)
-            engine_name = "agy"
-            engine = _make_engine("agy", bus, tts)
+            try:
+                engine_name = "agy"
+                engine = _make_engine("agy", bus, tts)
+                engine.wake_listener = wake_listener
+                engine_holder[0] = engine
+                bus.engine = engine
+                bus.engine_name = "agy"
+                bus.current_effort = getattr(engine, "effort", "medium")
+                await engine.start()
+                tts.queue_sentence("Codex failed to start, so I fell back to Antigravity.")
+            except Exception as fb_exc:
+                logger.error("Antigravity fallback failed (%s); trying agy-headless.", fb_exc)
+                await _shutdown_engine(engine)
+                engine_name = "agy-headless"
+                engine = _make_engine("agy-headless", bus, tts)
+                engine.wake_listener = wake_listener
+                engine_holder[0] = engine
+                bus.engine = engine
+                bus.engine_name = "agy-headless"
+                await engine.start()
+                tts.queue_sentence("Falling back to legacy Antigravity.")
+        elif engine_name == "agy":
+            logger.error("Engine agy failed to start (%s); falling back to Codex (codex).", exc)
+            await _shutdown_engine(engine)
+            engine_name = "codex"
+            engine = _make_engine("codex", bus, tts)
             engine.wake_listener = wake_listener
             engine_holder[0] = engine
             bus.engine = engine
-            bus.engine_name = "agy"
-            bus.current_effort = getattr(engine, "effort", "low")
+            bus.engine_name = "codex"
+            bus.current_effort = getattr(engine, "effort", "xhigh")
             await engine.start()
-            tts.queue_sentence("Codex failed to start, so I fell back to Antigravity.")
+            tts.queue_sentence("Antigravity failed to start, so I fell back to Codex.")
         else:
             raise
 
@@ -3116,7 +3266,7 @@ async def main():
 
     print("\n" + "="*65, flush=True)
     print(f" GIDEON PRIME EXECUTIVE CONSOLE [{engine_name}] ", flush=True)
-    print(" • WAKE WORD: Say 'Hey Jarvis' to speak hands-free", flush=True)
+    print(" • WAKE WORD: Say 'Hey Gideon' to speak hands-free", flush=True)
     print(" • HOLD SPACE IN BROWSER to speak (release to send)", flush=True)
     print(" • Or type any query directly in browser or terminal", flush=True)
     print(" • Type 'interrupt' to stop current turn", flush=True)
@@ -3125,7 +3275,7 @@ async def main():
 
     while True:
         try:
-            user_in = await stdin_reader.prompt_line("You [Hey Jarvis / HOLD SPACE in browser / type]: ")
+            user_in = await stdin_reader.prompt_line("You [Hey Gideon / HOLD SPACE in browser / type]: ")
 
             if user_in is None:
                 # Headless (systemd) or stdin EOF: idle without ever opening

@@ -17,6 +17,7 @@ import asyncio
 from datetime import datetime
 import json
 import logging
+import math
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -53,6 +54,8 @@ def evaluate_risk_gate(intent_id: str, confidence: float, risk_tier: str) -> Tup
     Returns:
         (allowed_to_run, needs_confirmation, reason)
     """
+    if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+        return False, False, "Invalid classifier confidence. Escalating to LLM."
     threshold = RISK_THRESHOLDS.get(risk_tier, 0.80)
     if confidence < threshold:
         return (
